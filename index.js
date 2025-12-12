@@ -61,20 +61,28 @@ function systemPrompt(lang) {
 }
 
 
+const { Configuration, OpenAIApi } = require("openai");
+
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
+
 async function ollamaChat(messages) {
-  const res = await fetch("http://localhost:11434/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: process.env.OLLAMA_MODEL || "llama3.2",
-      messages,
-      stream: false,
-      options: { temperature: 0.3 }
-    })
+  const chatMessages = messages.map(m => ({
+    role: m.role,
+    content: m.content
+  }));
+
+  const response = await openai.createChatCompletion({
+    model: process.env.OLLAMA_MODEL || "gpt-3.5-turbo",
+    messages: chatMessages,
+    temperature: 0.3,
   });
-  const data = await res.json();
-  return (data.message && data.message.content) ? data.message.content : "";
+
+  return response.data.choices[0].message.content || "";
 }
+
 
 
 // --- Rutas ---
