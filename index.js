@@ -44,6 +44,7 @@ app.use(bodyParser.json());
 // --- FAQs ---
 const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
 const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
+const faqs = lang === 'es' ? faqsES : faqsEN;
 
 function systemPrompt(lang, faqs) {
   // Convertimos los FAQs a un texto resumido
