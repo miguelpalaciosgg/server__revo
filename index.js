@@ -129,3 +129,4 @@ app.post("/leads", (req, res) => {
 // --- Arranque ---
 const port = process.env.PORT || 3001;
 app.listen(port, () => console.log("Assistant API on :" + port));
+console.log("OPENAI_API_KEY:", !!process.env.OPENAI_API_KEY);
