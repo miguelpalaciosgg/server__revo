@@ -45,11 +45,23 @@ app.use(bodyParser.json());
 const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
 const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
 
-function systemPrompt(lang) {
+function systemPrompt(lang, faqs) {
+  // Convertimos los FAQs a un texto resumido
+  const faqsText = `
+Actividades disponibles:
+${faqs.actividades.map(a => `- ${a.nombre}: ${a.descripcion} (Precio: ${a.precio}, Requisitos: ${a.requisitos || 'No especificado'}, Horarios: ${a.horarios.join(', ')})`).join('\n')}
+Ubicación: ${faqs.ubicacion}
+Horarios generales: ${faqs.horarios_generales.Benidorm}
+Reservas: ${faqs.reservas.politica}. Contacto: ${faqs.contacto.email}, ${faqs.contacto.telefono}
+  `;
+
   const base = lang === "es"
-    ? "Eres el asistente del centro de buceo. Objetivo: cualificar leads para actividades. Recoge nombre, email/teléfono, idioma, actividad, fechas, nivel. Usa solo la info de FAQs. Pide consentimiento para contacto. Sé breve y claro."
-    : "You are the dive center assistant. Goal: qualify leads for activities. Collect name, email/phone, language, activity, dates, level. Use only FAQ info. Ask consent for contact. Be brief and clear.";
-  return base + ` Idioma=${lang}. No reveles información fuera de las FAQs.`;
+    ? `Eres el asistente del centro de buceo Revolution Dive en Benidorm. Tu objetivo es cualificar leads para actividades de buceo. Usa solo la información de FAQs que se indica a continuación. Sé breve y claro. Pide consentimiento para guardar nombre, email/teléfono, idioma, actividad, fechas y nivel. No inventes información.
+${faqsText}`
+    : `You are the dive center assistant for Revolution Dive in Benidorm. Your goal is to qualify leads for diving activities. Use only the FAQ information provided below. Be brief and clear. Ask consent before collecting name, email/phone, language, activity, dates, and level. Do not invent information.
+${faqsText}`;
+
+  return base + ` Idioma=${lang}.`;
 }
 
 // --- OpenAI v6.x ---
