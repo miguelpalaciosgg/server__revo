@@ -3,6 +3,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 require("dotenv").config();
 const fs = require("fs");
+const OpenAI = require("openai");
 
 const app = express();
 
@@ -22,10 +23,9 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
-// 1) Aplicar CORS primero
 app.use(cors(corsOptions));
 
-// 2) Preflight GLOBAL
+// Preflight global
 app.use((req, res, next) => {
   if (req.method === "OPTIONS") {
     const origin = req.headers.origin || "*";
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 3) Body parser
+// Body parser
 app.use(bodyParser.json());
 
 // --- FAQs ---
@@ -52,13 +52,10 @@ function systemPrompt(lang) {
   return base + ` Idioma=${lang}. No reveles información fuera de las FAQs.`;
 }
 
-// --- OpenAI setup ---
-const { Configuration, OpenAIApi } = require("openai");
-
-const configuration = new Configuration({
+// --- OpenAI v6.x ---
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 async function ollamaChat(messages) {
   try {
@@ -67,13 +64,13 @@ async function ollamaChat(messages) {
       content: m.content
     }));
 
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       model: process.env.OLLAMA_MODEL || "gpt-3.5-turbo",
       messages: chatMessages,
       temperature: 0.3,
     });
 
-    const answer = response.data.choices[0].message.content || "";
+    const answer = response.choices[0].message.content || "";
     console.log("Respuesta IA:", answer);
     return answer;
 
