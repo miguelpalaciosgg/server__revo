@@ -49,7 +49,7 @@ function systemPrompt(lang, faqs) {
   // Convertimos los FAQs a un texto resumido
   const faqsText = `
 Actividades disponibles:
-${faqs.actividades.map(a => `- ${a.nombre}: ${a.descripcion} (Precio: ${a.precio}, Requisitos: ${a.requisitos || 'No especificado'}, Horarios: ${a.horarios.join(', ')})`).join('\n')}
+${faqs.actividades.map(a => `- ${a.nombre}: ${a.descripcion} (Precio: ${a.precio}, Requisitos: ${a.requisitos || 'No especificado'}, Horarios: ${Array.isArray(a.horarios) ? a.horarios.join(', ') : 'No especificado'})`).join('\n')}
 Ubicación: ${faqs.ubicacion}
 Horarios generales: ${faqs.horarios_generales.Benidorm}
 Reservas: ${faqs.reservas.politica}. Contacto: ${faqs.contacto.email}, ${faqs.contacto.telefono}
