@@ -1,0 +1,18 @@
+{
+  "actividades": ["Bautismo", "Open Water", "Advanced", "Inmersiones guiadas", "Alquiler de equipo", "Nitrox"],
+  "requisitos": {
+    "bautismo": "Edad >= 10, sin certificado, apto médico recomendado",
+    "open_water": "Edad >= 10, apto médico, teoría + piscina + mar",
+    "advanced": "Certificado Open Water, experiencia reciente"
+  },
+  "horarios": "09:00-18:00; salidas 09:30 y 15:00",
+  "ubicacion": "Puerto XYZ, Costa ABC",
+  "precios": {
+    "bautismo": "75€",
+    "open_water": "380€",
+    "advanced": "320€",
+    "inmersion_guiada": "45€"
+  },
+  "reservas": "Señal 20%, cancelación 48h",
+  "contacto": "info@tudominio.com, +34 600 000 000"
+}

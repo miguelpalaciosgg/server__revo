@@ -1,0 +1,18 @@
+{
+  "activities": ["Try Dive", "Open Water", "Advanced", "Guided dives", "Gear rental", "Nitrox"],
+  "requirements": {
+    "try_dive": "Age >= 10, no certification, medical check recommended",
+    "open_water": "Age >= 10, medical clearance, theory + pool + sea",
+    "advanced": "Open Water certified, recent experience"
+  },
+  "schedule": "09:00-18:00; departures 09:30 and 15:00",
+  "location": "XYZ Harbor, ABC Coast",
+  "prices": {
+    "try_dive": "€75",
+    "open_water": "€380",
+    "advanced": "€320",
+    "guided_dive": "€45"
+  },
+  "booking": "20% deposit, 48h cancellation",
+  "contact": "info@yourdomain.com, +34 600 000 000"
+}
