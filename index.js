@@ -103,7 +103,7 @@ app.post("/chat", async (req, res) => {
 
     const kb = lang === "en" ? faqsEN : faqsES;
     const messages = [
-      { role: "system", content: systemPrompt(lang) },
+      { role: "system", content: systemPrompt(lang,kb) },
       { role: "system", content: "FAQs:\n" + JSON.stringify(kb).slice(0, 16000) },
       { role: "user", content: userMessage }
     ];
