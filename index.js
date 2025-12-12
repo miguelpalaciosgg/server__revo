@@ -75,7 +75,7 @@ async function ollamaChat(messages) {
     return answer;
 
   } catch (err) {
-    console.error("Error OpenAI:", err);
+    console.error("Error OpenAI:", err.response?.status, err.response?.data || err);
     return "Error: no se pudo obtener respuesta de la IA";
   }
 }
