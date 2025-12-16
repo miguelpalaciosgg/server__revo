@@ -7,14 +7,14 @@ const OpenAI = require("openai");
 
 const app = express();
 
-// ==============================
-// MEMORIA DE SESIONES (RAM)
-// ==============================
-const sessions = {}; // { sessionId: { activity: "Try Dive", ... } }
+/* =========================
+   MEMORIA DE SESIONES (RAM)
+========================= */
+const sessions = {};
 
-// ==============================
-// CORS
-// ==============================
+/* =========================
+   CORS
+========================= */
 const allowed = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
@@ -34,16 +34,16 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-// ==============================
-// FAQs
-// ==============================
+/* =========================
+   FAQs
+========================= */
 const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
 const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
 
-// ==============================
-// SYSTEM PROMPT
-// ==============================
-function systemPrompt(lang, faqs) {
+/* =========================
+   SYSTEM PROMPT
+========================= */
+function systemPrompt(lang, faqs, memory) {
   const actividades = Array.isArray(faqs.actividades) ? faqs.actividades : [];
 
   const faqsText = `
@@ -60,30 +60,33 @@ Política de reservas: ${faqs.reservas?.politica}
 Contacto: ${faqs.contacto?.email} | ${faqs.contacto?.telefono}
 `;
 
+  const memoryText = memory.activity
+    ? `Actividad ya seleccionada por el cliente: ${memory.activity}.
+No vuelvas a preguntar por la actividad.`
+    : `Actividad aún no seleccionada.`;
+
   const baseES = `
 Eres el asistente comercial del centro de buceo Revolution Dive en Benidorm.
-Tu objetivo principal es ayudar a los clientes y convertir conversaciones en reservas.
-Usa SOLO la información proporcionada a continuación.
+Tu objetivo es ayudar a los clientes y convertir conversaciones en reservas.
+Usa SOLO la información proporcionada.
 No inventes información.
-Responde de forma clara, cercana y profesional.
-Cuando detectes interés real, invita al cliente a reservar o a dejar sus datos.
-Pide consentimiento antes de solicitar o guardar datos personales.
-Cuando el usuario pregunte por una actividad concreta (por ejemplo: bautismo, try dive, open water),
-considera esa actividad como seleccionada y NO vuelvas a preguntarla,
-a menos que el usuario la cambie explícitamente.
+Sé cercano, claro y profesional.
+No repitas saludos innecesarios.
+Guía al cliente paso a paso.
+Si el cliente confirma que quiere reservar una actividad, pasarle nuestro whatsapp, si se puede el enlace directo para hablar. 
+
+${memoryText}
 
 ${faqsText}
 `;
 
   const baseEN = `
-You are the sales assistant for the dive center Revolution Dive in Benidorm.
-Your main goal is to help customers and convert conversations into bookings.
-Use ONLY the information provided below.
-Do not invent information.
+You are the sales assistant for Revolution Dive in Benidorm.
+Your goal is to help customers and convert conversations into bookings.
+Use ONLY the provided information.
 Be clear, friendly and professional.
-When you detect real interest, guide the user to book or leave contact details.
-Ask for consent before requesting or storing personal data.
-When the user mentions a specific activity, consider it selected and do not ask again unless changed.
+
+${memoryText}
 
 ${faqsText}
 `;
@@ -91,80 +94,106 @@ ${faqsText}
   return lang === "en" ? baseEN : baseES;
 }
 
-// ==============================
-// OPENAI
-// ==============================
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+/* =========================
+   OPENAI
+========================= */
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function openaiChat(messages) {
-  try {
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-3.5-turbo",
-      messages,
-      temperature: 0.3
-    });
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-3.5-turbo",
+    messages,
+    temperature: 0.3
+  });
 
-    return response.choices[0]?.message?.content || "";
-
-  } catch (err) {
-    console.error("OpenAI error:", err.response?.status || err.message);
-    return "Lo siento, ahora mismo no puedo ayudarte. ¿Quieres que te contactemos por WhatsApp?";
-  }
+  return response.choices[0]?.message?.content || "";
 }
 
-// ==============================
-// RUTA /chat
-// ==============================
+/* =========================
+   /CHAT
+========================= */
 app.post("/chat", async (req, res) => {
   try {
     const { userMessage, lang = "es", sessionId } = req.body || {};
-    if (!userMessage) {
-      return res.status(400).json({ error: "userMessage required" });
-    }
+    if (!userMessage) return res.status(400).json({ error: "userMessage required" });
 
     const sid = sessionId || "default";
 
-    // inicializar sesión
     if (!sessions[sid]) {
       sessions[sid] = {
-        activity: null
+        activity: null,
+        step: "INIT", // INIT | ASK_NAME | ASK_CONTACT | DONE
+        name: null,
+        contact: null
       };
     }
 
-    const language = lang === "en" ? "en" : "es";
-    const kb = language === "en" ? faqsEN : faqsES;
-
-    // ==============================
-    // DETECCIÓN DE ACTIVIDAD
-    // ==============================
+    const memory = sessions[sid];
     const text = userMessage.toLowerCase();
 
-    if (text.includes("bautizo") || text.includes("try dive")) {
-      sessions[sid].activity = "Try Dive";
+    /* =========================
+       DETECCIÓN DE ACTIVIDAD
+    ========================= */
+    if (!memory.activity) {
+      if (text.includes("bautizo") || text.includes("try dive")) {
+        memory.activity = "Try Dive";
+      }
+      if (text.includes("open water")) {
+        memory.activity = "Open Water";
+      }
     }
 
-    if (text.includes("open water")) {
-      sessions[sid].activity = "Open Water";
+    /* =========================
+       DETECCIÓN DE RESERVA
+    ========================= */
+    if (
+      (text.includes("reservar") || text.includes("quiero reservar")) &&
+      memory.step === "INIT"
+    ) {
+      memory.step = "ASK_NAME";
     }
 
-    if (text.includes("advanced")) {
-      sessions[sid].activity = "Advanced";
+    /* =========================
+       FLUJO GUIADO
+    ========================= */
+    if (memory.step === "ASK_NAME") {
+      if (!memory.name && userMessage.trim().split(" ").length >= 2) {
+        memory.name = userMessage.trim();
+        memory.step = "ASK_CONTACT";
+
+        return res.json({
+          answer: `¡Gracias, ${memory.name}! 😊  
+¿Podrías facilitarme un email o número de teléfono para continuar con la reserva?`
+        });
+      }
+
+      return res.json({
+        answer: "Perfecto 😊 ¿Me indicas tu nombre completo para continuar con la reserva?"
+      });
     }
 
-    // ==============================
-    // MEMORIA PARA EL PROMPT
-    // ==============================
-    const memoryText = sessions[sid].activity
-      ? `Actividad ya seleccionada por el cliente: ${sessions[sid].activity}.
-No vuelvas a preguntar por la actividad.`
-      : `Actividad aún no seleccionada.`;
+    if (memory.step === "ASK_CONTACT") {
+      memory.contact = userMessage.trim();
+      memory.step = "DONE";
+
+      return res.json({
+        answer: `¡Genial! 🤿  
+Hemos registrado tu interés en el **${memory.activity}**.
+
+En breve nuestro equipo se pondrá en contacto contigo para finalizar la reserva.  
+¡Gracias por confiar en Revolution Dive!`
+      });
+    }
+
+    /* =========================
+       OPENAI RESPUESTA NORMAL
+    ========================= */
+    const kb = lang === "en" ? faqsEN : faqsES;
 
     const messages = [
       {
         role: "system",
-        content: systemPrompt(language, kb) + "\n\n" + memoryText
+        content: systemPrompt(lang, kb, memory)
       },
       { role: "user", content: userMessage }
     ];
@@ -178,23 +207,19 @@ No vuelvas a preguntar por la actividad.`
   }
 });
 
-// ==============================
-// RUTA /leads
-// ==============================
+/* =========================
+   /LEADS (opcional)
+========================= */
 app.post("/leads", (req, res) => {
   try {
-    const { name, contact, lang = "es", activity, dates, level, consent } = req.body || {};
+    const { name, contact, activity, consent } = req.body || {};
     if (!consent) return res.status(400).json({ error: "consent_required" });
 
     const entry = {
       ts: new Date().toISOString(),
       name,
       contact,
-      lang,
-      activity,
-      dates,
-      level,
-      consent: true
+      activity
     };
 
     const path = "./leads.json";
@@ -213,9 +238,9 @@ app.post("/leads", (req, res) => {
   }
 });
 
-// ==============================
-// ARRANQUE
-// ==============================
+/* =========================
+   ARRANQUE
+========================= */
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log("Assistant API running on port", port);
