@@ -7,7 +7,14 @@ const OpenAI = require("openai");
 
 const app = express();
 
-// --- CORS ---
+// ==============================
+// MEMORIA DE SESIONES (RAM)
+// ==============================
+const sessions = {}; // { sessionId: { activity: "Try Dive", ... } }
+
+// ==============================
+// CORS
+// ==============================
 const allowed = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
@@ -27,11 +34,15 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-// --- FAQs ---
+// ==============================
+// FAQs
+// ==============================
 const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
 const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
 
-// --- SYSTEM PROMPT ---
+// ==============================
+// SYSTEM PROMPT
+// ==============================
 function systemPrompt(lang, faqs) {
   const actividades = Array.isArray(faqs.actividades) ? faqs.actividades : [];
 
@@ -72,6 +83,7 @@ Do not invent information.
 Be clear, friendly and professional.
 When you detect real interest, guide the user to book or leave contact details.
 Ask for consent before requesting or storing personal data.
+When the user mentions a specific activity, consider it selected and do not ask again unless changed.
 
 ${faqsText}
 `;
@@ -79,8 +91,12 @@ ${faqsText}
   return lang === "en" ? baseEN : baseES;
 }
 
-// --- OPENAI ---
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// ==============================
+// OPENAI
+// ==============================
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 async function openaiChat(messages) {
   try {
@@ -93,24 +109,63 @@ async function openaiChat(messages) {
     return response.choices[0]?.message?.content || "";
 
   } catch (err) {
-    console.error("OpenAI error:", err.response?.status);
+    console.error("OpenAI error:", err.response?.status || err.message);
     return "Lo siento, ahora mismo no puedo ayudarte. ¿Quieres que te contactemos por WhatsApp?";
   }
 }
 
-// --- RUTA /chat ---
+// ==============================
+// RUTA /chat
+// ==============================
 app.post("/chat", async (req, res) => {
   try {
-    const { userMessage, lang = "es" } = req.body || {};
+    const { userMessage, lang = "es", sessionId } = req.body || {};
     if (!userMessage) {
       return res.status(400).json({ error: "userMessage required" });
+    }
+
+    const sid = sessionId || "default";
+
+    // inicializar sesión
+    if (!sessions[sid]) {
+      sessions[sid] = {
+        activity: null
+      };
     }
 
     const language = lang === "en" ? "en" : "es";
     const kb = language === "en" ? faqsEN : faqsES;
 
+    // ==============================
+    // DETECCIÓN DE ACTIVIDAD
+    // ==============================
+    const text = userMessage.toLowerCase();
+
+    if (text.includes("bautizo") || text.includes("try dive")) {
+      sessions[sid].activity = "Try Dive";
+    }
+
+    if (text.includes("open water")) {
+      sessions[sid].activity = "Open Water";
+    }
+
+    if (text.includes("advanced")) {
+      sessions[sid].activity = "Advanced";
+    }
+
+    // ==============================
+    // MEMORIA PARA EL PROMPT
+    // ==============================
+    const memoryText = sessions[sid].activity
+      ? `Actividad ya seleccionada por el cliente: ${sessions[sid].activity}.
+No vuelvas a preguntar por la actividad.`
+      : `Actividad aún no seleccionada.`;
+
     const messages = [
-      { role: "system", content: systemPrompt(language, kb) },
+      {
+        role: "system",
+        content: systemPrompt(language, kb) + "\n\n" + memoryText
+      },
       { role: "user", content: userMessage }
     ];
 
@@ -123,7 +178,9 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-// --- RUTA /leads ---
+// ==============================
+// RUTA /leads
+// ==============================
 app.post("/leads", (req, res) => {
   try {
     const { name, contact, lang = "es", activity, dates, level, consent } = req.body || {};
@@ -147,6 +204,7 @@ app.post("/leads", (req, res) => {
 
     arr.push(entry);
     fs.writeFileSync(path, JSON.stringify(arr, null, 2));
+
     res.json({ ok: true });
 
   } catch (e) {
@@ -155,7 +213,9 @@ app.post("/leads", (req, res) => {
   }
 });
 
-// --- ARRANQUE ---
+// ==============================
+// ARRANQUE
+// ==============================
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log("Assistant API running on port", port);
