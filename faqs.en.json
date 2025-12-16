@@ -1,18 +1,64 @@
 {
-  "activities": ["Try Dive", "Open Water", "Advanced", "Guided dives", "Gear rental", "Nitrox"],
-  "requirements": {
-    "try_dive": "Age >= 10, no certification, medical check recommended",
-    "open_water": "Age >= 10, medical clearance, theory + pool + sea",
-    "advanced": "Open Water certified, recent experience"
+  "activities": [
+    {
+      "name": "Try Dive",
+      "description": "First diving experience guided by an instructor.",
+      "price": "€75",
+      "requirements": "Age ≥ 10. No certification required. Medical check recommended.",
+      "schedule": ["09:30", "15:00"]
+    },
+    {
+      "name": "Open Water",
+      "description": "Entry-level course including theory, pool and open water dives.",
+      "price": "€380",
+      "requirements": "Age ≥ 10. Medical clearance required.",
+      "schedule": ["09:00–18:00"]
+    },
+    {
+      "name": "Advanced",
+      "description": "Advanced course to improve diving skills and depth.",
+      "price": "€320",
+      "requirements": "Open Water certification and recent diving experience.",
+      "schedule": ["09:00–18:00"]
+    },
+    {
+      "name": "Guided Dives",
+      "description": "Guided boat or shore dives in Benidorm.",
+      "price": "€45",
+      "requirements": "Valid diving certification and insurance if applicable.",
+      "schedule": ["09:30", "15:00"]
+    },
+    {
+      "name": "Gear Rental",
+      "description": "Diving equipment rental available for courses and trips.",
+      "price": "Ask",
+      "requirements": "Subject to availability and sizing.",
+      "schedule": ["09:00–18:00"]
+    },
+    {
+      "name": "Nitrox",
+      "description": "Enriched air option for certified divers.",
+      "price": "Ask",
+      "requirements": "Nitrox certification or enrollment in a Nitrox course.",
+      "schedule": ["On request"]
+    },
+    {
+      "name": "Snorkeling",
+      "description": "Guided snorkeling experience in Benidorm.",
+      "price": "Ask",
+      "requirements": "Ability to swim. Equipment included subject to availability.",
+      "schedule": ["Morning", "Afternoon"]
+    }
+  ],
+  "location": "Benidorm Commercial Port, Paseo de Colón 1 – Booth 30, Benidorm (Alicante)",
+  "general_hours": {
+    "Benidorm": "09:00–18:00; departures at 09:30 and 15:00"
   },
-  "schedule": "09:00-18:00; departures 09:30 and 15:00",
-  "location": "XYZ Harbor, ABC Coast",
-  "prices": {
-    "try_dive": "€75",
-    "open_water": "€380",
-    "advanced": "€320",
-    "guided_dive": "€45"
+  "booking": {
+    "policy": "20% deposit required, 48h cancellation policy"
   },
-  "booking": "20% deposit, 48h cancellation",
-  "contact": "info@yourdomain.com, +34 600 000 000"
+  "contact": {
+    "email": "reservas@revolutiondive.com",
+    "phone": "+34 618 406 991"
+  }
 }

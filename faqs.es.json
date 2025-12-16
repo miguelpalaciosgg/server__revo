@@ -1,18 +1,64 @@
 {
-  "actividades": ["Bautismo", "Open Water", "Advanced", "Inmersiones guiadas", "Alquiler de equipo", "Nitrox"],
-  "requisitos": {
-    "bautismo": "Edad >= 10, sin certificado, apto médico recomendado",
-    "open_water": "Edad >= 10, apto médico, teoría + piscina + mar",
-    "advanced": "Certificado Open Water, experiencia reciente"
+  "actividades": [
+    {
+      "nombre": "Bautismo",
+      "descripcion": "Primera experiencia de buceo guiada por instructor.",
+      "precio": "75€",
+      "requisitos": "Edad ≥ 10. Sin certificación. Apto médico recomendado.",
+      "horarios": ["09:30", "15:00"]
+    },
+    {
+      "nombre": "Open Water",
+      "descripcion": "Curso de iniciación: teoría, piscina y mar.",
+      "precio": "380€",
+      "requisitos": "Edad ≥ 10. Apto médico. Teoría + piscina + mar.",
+      "horarios": ["09:00-18:00"]
+    },
+    {
+      "nombre": "Advanced",
+      "descripcion": "Curso avanzado para mejorar habilidades y profundidad.",
+      "precio": "320€",
+      "requisitos": "Certificación Open Water. Experiencia reciente.",
+      "horarios": ["09:00-18:00"]
+    },
+    {
+      "nombre": "Inmersiones guiadas",
+      "descripcion": "Salidas en Benidorm con guía titulado.",
+      "precio": "45€",
+      "requisitos": "Certificación vigente y seguro si aplica.",
+      "horarios": ["09:30", "15:00"]
+    },
+    {
+      "nombre": "Alquiler de equipo",
+      "descripcion": "Material de buceo disponible para cursos y salidas.",
+      "precio": "Consultar",
+      "requisitos": "Sujeto a disponibilidad y talla.",
+      "horarios": ["09:00-18:00"]
+    },
+    {
+      "nombre": "Nitrox",
+      "descripcion": "Opción de mezcla enriquecida para inmersiones.",
+      "precio": "Consultar",
+      "requisitos": "Certificación Nitrox o curso asociado.",
+      "horarios": ["Bajo solicitud"]
+    },
+    {
+      "nombre": "Snorkel",
+      "descripcion": "Excursión de snorkel guiada en Benidorm.",
+      "precio": "Consultar",
+      "requisitos": "Saber nadar. Equipo incluido según disponibilidad.",
+      "horarios": ["Mañana", "Tarde"]
+    }
+  ],
+  "ubicacion": "Puerto Comercial Benidorm, Paseo de Colón, 1 - Caseta 30, Benidorm (Alicante)",
+  "horarios_generales": {
+    "Benidorm": "09:00-18:00; salidas 09:30 y 15:00"
   },
-  "horarios": "09:00-18:00; salidas 09:30 y 15:00",
-  "ubicacion": "Puerto XYZ, Costa ABC",
-  "precios": {
-    "bautismo": "75€",
-    "open_water": "380€",
-    "advanced": "320€",
-    "inmersion_guiada": "45€"
+  "reservas": {
+    "politica": "Señal 20%, cancelación 48h"
   },
-  "reservas": "Señal 20%, cancelación 48h",
-  "contacto": "info@tudominio.com, +34 600 000 000"
+  "contacto": {
+    "email": "reservas@revolutiondive.com",
+    "telefono": "+34 618 406 991"
+  }
 }
