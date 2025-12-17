@@ -16,8 +16,9 @@ const sessions = {};
 
 
 /* ========= UTIL ========= */
-function normalize(str = "") {
-  return str
+function normalize(str) {
+  const s = (str ?? "").toString();
+  return s
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
@@ -183,3 +184,7 @@ app.listen(process.env.PORT || 3001, () =>
 
 /* ========= HEALTH ========= */
 app.get("/healthz", (req, res) => res.status(200).send("ok"));
+
+
+
+
