@@ -271,16 +271,31 @@ app.post("/chat", async (req, res) => {
     body = body.replace(/\b(how can I help you\??|en qué puedo ayudarte\??)\b/iu, "").trim();
 
     const greeting = lang === 'en'
-      ? "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?"
+      ? "I'm the AI assistant integrated with Revolution Dive. How can I help you?"
       : "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?";
-
+      
     if (!s.greeted) {
       // si el modelo ya contenía una frase corta similar, evitar duplicarla
       const simpleModelGreeting = /(en qué puedo ayudarte|how can I help you|how can I help)/i;
       if (simpleModelGreeting.test(body)) {
         body = body.replace(simpleModelGreeting, "").trim();
       }
-      answer = body ? `${greeting} ${body}` : greeting;
+      // detectar fragmentos de pregunta muy cortos y fusionarlos al saludo
+      const shortQuestion = body.match(/^\s*[¿?¡!]*\s*(hoy|mañana|ahora|cuando|cuándo|today|tomorrow|now|when)\s*[\?\!]*$/i);
+      if (shortQuestion) {
+        const q = shortQuestion[1].toLowerCase();
+        if (lang === 'en') {
+          // ejemplo: "How can I help you?" + "today" -> "How can I help you today?"
+          answer = greeting.replace(/\?$/, '') + ' ' + q + '?';
+        } else {
+          // español: "¿En qué puedo ayudarte?" + "hoy" -> "¿En qué puedo ayudarte hoy?"
+          // quitar el signo final para volver a añadir la pregunta con la palabra
+          const g = greeting.replace(/\?$/, '');
+          answer = g + ' ' + q + '?';
+        }
+      } else {
+        answer = body ? `${greeting} ${body}` : greeting;
+      }
       // marcar greeted YA aquí para evitar duplicados en concurrencia
       s.greeted = true;
     } else {
