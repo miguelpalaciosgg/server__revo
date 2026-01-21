@@ -4,6 +4,20 @@ const bodyParser = require("body-parser");
 require("dotenv").config();
 const fs = require("fs");
 const OpenAI = require("openai");
+// Twilio (optional)
+const TWILIO_SID = process.env.TWILIO_SID;
+const TWILIO_TOKEN = process.env.TWILIO_TOKEN;
+const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+1415XXXXXXX"
+const TWILIO_CALL_FROM = process.env.TWILIO_CALL_FROM; // e.g. "+1415XXXXXXX"
+let twilio = null;
+if (TWILIO_SID && TWILIO_TOKEN) {
+  try {
+    twilio = require('twilio')(TWILIO_SID, TWILIO_TOKEN);
+  } catch (e) {
+    console.warn('Twilio library not available or failed to init:', e.message);
+    twilio = null;
+  }
+}
 
 
 const app = express();
@@ -36,6 +50,24 @@ function stripGreeting(answer = "") {
     out = out.replace(p, "").trim();
   }
   return out || a;
+}
+
+async function sendWhatsApp(to, body) {
+  if (!twilio) throw new Error('Twilio not configured');
+  return twilio.messages.create({
+    from: TWILIO_WHATSAPP_FROM,
+    to: `whatsapp:${to}`,
+    body,
+  });
+}
+
+async function placeCall(to, twiml) {
+  if (!twilio) throw new Error('Twilio not configured');
+  return twilio.calls.create({
+    to: to,
+    from: TWILIO_CALL_FROM,
+    twiml,
+  });
 }
 
 
@@ -184,20 +216,18 @@ app.post("/chat", async (req, res) => {
     s.contact = userMessage.trim();
     s.step = "DONE";
 
-
-    const reserveUrl = "https://revolutiondive.com/paga-aqui/";
+    const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
     const contact = faqs.contacto || faqs.contact || {};
     const msg = lang === 'en'
-      ? `Perfect! 🤿 We registered your interest in ${s.activity}. To complete the booking, please go to ${reserveUrl} or call ${contact.phone || contact.telefono}. We will also follow up shortly.`
-      : `¡Perfecto! 🤿 Hemos registrado tu interés en ${s.activity}. Para completar la reserva, entra en ${reserveUrl} o llama al ${contact.telefono || contact.phone}. También te contactaremos en breve.`;
-
+      ? `Perfect! We registered your interest in ${s.activity}. To complete the booking please go to ${reserveUrl} or call ${contact.phone || contact.telefono}. We'll follow up shortly.`
+      : `¡Perfecto! Hemos registrado tu interés en ${s.activity}. Para completar la reserva entra en ${reserveUrl} o llama al ${contact.telefono || contact.phone}. Te contactaremos en breve.`;
 
     return res.json({ answer: msg });
   }
 
 
   /* --- modo IA SOLO PARA INFO --- */
-  const reserveUrl = "https://revolutiondive.com/paga-aqui/";
+  const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
   const contact = faqs.contacto || faqs.contact || {};
   const system = { role: "system", content: systemPrompt(s.activity, activityInfo, lang, contact, reserveUrl) };
   const limitedHistory = s.history.slice(-8); // últimas 8 interacciones aprox
@@ -205,14 +235,15 @@ app.post("/chat", async (req, res) => {
   let answer = "";
   try {
     const raw = await aiReply(messages);
-    // Permitir un saludo agradable solo en la primera respuesta
+    // Eliminar saludos generados por el modelo y controlar un único saludo propio
+    const body = stripGreeting(raw).replace(/\s{2,}/g, " ").trim();
     if (!s.greeted) {
-      // Si el modelo no saludó, añadimos un saludo breve
-      const trimmed = raw.trim();
-      const hasGreeting = /^(hola|buenas|bienvenido|encantado|gracias|hello|hi|hey|welcome)/i.test(trimmed);
-      answer = hasGreeting ? trimmed : (lang === 'en' ? `Happy to help! ${trimmed}` : `¡Encantado de ayudarte! ${trimmed}`);
+      const greeting = lang === 'en'
+        ? "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?"
+        : "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?";
+      answer = body ? `${greeting} ${body}` : greeting;
     } else {
-      answer = stripGreeting(raw);
+      answer = body || (lang === 'en' ? "Claro, dime." : "Claro, dime.");
     }
   } catch (err) {
     const precio = activityInfo?.precio || activityInfo?.price || '';
@@ -248,6 +279,33 @@ app.listen(process.env.PORT || 3001, () =>
 
 /* ========= HEALTH ========= */
 app.get("/healthz", (req, res) => res.status(200).send("ok"));
+
+
+/* ========= TWILIO HELPERS / ENDPOINTS (optional) ========= */
+app.post('/notify', async (req, res) => {
+  const { phone, message } = req.body || {};
+  if (!phone || !message) return res.status(400).json({ ok: false, error: 'phone and message required' });
+  try {
+    if (!twilio) return res.status(500).json({ ok: false, error: 'Twilio not configured' });
+    const resp = await sendWhatsApp(phone, message);
+    return res.json({ ok: true, sid: resp.sid });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/twilio-call', async (req, res) => {
+  const { phone, message } = req.body || {};
+  if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
+  try {
+    if (!twilio) return res.status(500).json({ ok: false, error: 'Twilio not configured' });
+    const twiml = `<Response><Say>${(message||'Hello from Revolution Dive').replace(/&/g,'and')}</Say></Response>`;
+    const resp = await placeCall(phone, twiml);
+    return res.json({ ok: true, sid: resp.sid });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 
 
