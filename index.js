@@ -40,16 +40,44 @@ function normalize(str) {
 
 
 function stripGreeting(answer = "") {
-  const a = answer.trim();
+  const a = (answer || "").toString().trim();
+  // Quitar puntuación inicial frecuente (¡, ¿, !, ?) y comillas
+  let out = a.replace(/^[\s¡!¿?«»"']+/u, "");
+  // Patrones de saludo (ES/EN) con variantes y signos repetidos
   const patterns = [
-    /^\s*(hola+|buenas+|buenos dias|buenas tardes|buenas noches)[\s,!.:-]*/iu,
-    /^\s*(hello+|hi+|hey+|good\s+(morning|afternoon|evening))[\s,!.:-]*/iu
+    /^(hola+|buenas|buenos\s+dias|buenas\s+tardes|buenas\s+noches)[\s,!.:\-–—]*/iu,
+    /^(hello+|hi+|hey+|welcome|good\s+(morning|afternoon|evening))[\s,!.:\-–—]*/iu,
+    // frases comunes finales que modelos añaden
+    /(how can I help you\??|en qué puedo ayudarte\??|how can I help\??|what can I do for you\??)$/iu
   ];
-  let out = a;
   for (const p of patterns) {
     out = out.replace(p, "").trim();
   }
+  // Si tras limpiar queda otro saludo repetido al inicio, eliminarlo
+  out = out.replace(/^[\s¡!¿?]*((hola|hello|hi|hey)[\s,!.:-]*)+/iu, "").trim();
   return out || a;
+}
+
+function validatePhone(v) {
+  if (!v) return null;
+  const s = v.toString().replace(/[^\d+]/g, "");
+  // simple E.164-ish check: + + country + digits and length reasonable
+  if (/^\+\d{7,15}$/.test(s)) return s;
+  // try adding +34 as default for local Spanish numbers
+  if (/^\d{9}$/.test(s)) return `+34${s}`;
+  return null;
+}
+
+function scoreLead(session) {
+  const text = ((session.history || []).map(h => h.content).join(" ") + " " + (session.activity || "")).toLowerCase();
+  const hotHints = ["book", "reservation", "reserv", "quiero reservar", "comprar", "pagar"];
+  const warmHints = ["precio", "cuando", "cuando sale", "fechas", "horario", "cuánto", "interesa", "interes"];
+  let score = 0;
+  for (const h of hotHints) if (text.includes(h)) score += 2;
+  for (const h of warmHints) if (text.includes(h)) score += 1;
+  if (validatePhone(session.contact)) score += 2;
+  if (session.name) score += 1;
+  return score; // >3 => hot
 }
 
 async function sendWhatsApp(to, body) {
@@ -235,13 +263,26 @@ app.post("/chat", async (req, res) => {
   let answer = "";
   try {
     const raw = await aiReply(messages);
-    // Eliminar saludos generados por el modelo y controlar un único saludo propio
-    const body = stripGreeting(raw).replace(/\s{2,}/g, " ").trim();
+    // Normalizar respuesta del modelo
+    let body = stripGreeting(raw).replace(/\s{2,}/g, " ").trim();
+    // Colapsar múltiples signos de exclamación/interrogación y puntos repetidos
+    body = body.replace(/[!¡]{2,}/g, "!").replace(/[?]{2,}/g, "?").replace(/\.{3,}/g, "...");
+    // Quitar frases de cierre/greeting que el modelo pudiera dejar al final
+    body = body.replace(/\b(how can I help you\??|en qué puedo ayudarte\??)\b/iu, "").trim();
+
+    const greeting = lang === 'en'
+      ? "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?"
+      : "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?";
+
     if (!s.greeted) {
-      const greeting = lang === 'en'
-        ? "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?"
-        : "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?";
+      // si el modelo ya contenía una frase corta similar, evitar duplicarla
+      const simpleModelGreeting = /(en qué puedo ayudarte|how can I help you|how can I help)/i;
+      if (simpleModelGreeting.test(body)) {
+        body = body.replace(simpleModelGreeting, "").trim();
+      }
       answer = body ? `${greeting} ${body}` : greeting;
+      // marcar greeted YA aquí para evitar duplicados en concurrencia
+      s.greeted = true;
     } else {
       answer = body || (lang === 'en' ? "Claro, dime." : "Claro, dime.");
     }
@@ -261,7 +302,13 @@ app.post("/chat", async (req, res) => {
     { role: "user", content: userMessage },
     { role: "assistant", content: answer }
   );
-  if (!s.greeted) s.greeted = true;
+  // normalizar/validar contacto y marcar lead
+  if (s.contact) {
+    const phone = validatePhone(s.contact);
+    if (phone) s.contact = phone; // almacenar E.164-ish
+  }
+  const leadScore = scoreLead(s);
+  s.lead = { score: leadScore, status: leadScore > 3 ? "hot" : leadScore >= 2 ? "warm" : "cold" };
   if (s.history.length > 20) {
     s.history.splice(0, s.history.length - 20);
   }
@@ -282,6 +329,30 @@ app.get("/healthz", (req, res) => res.status(200).send("ok"));
 
 
 /* ========= TWILIO HELPERS / ENDPOINTS (optional) ========= */
+/* ========= SESSION / LEAD ENDPOINTS ========= */
+// obtener estado de sesión / lead
+app.get("/session/:id", (req, res) => {
+  const id = req.params.id || "default";
+  const s = sessions[id];
+  if (!s) return res.status(404).json({ ok: false, error: "session not found" });
+  return res.json({ ok: true, session: s });
+});
+
+// enviar enlace de reserva por WhatsApp (plantilla)
+app.post("/send-booking", async (req, res) => {
+  const { phone, sessionId = "default" } = req.body || {};
+  if (!phone) return res.status(400).json({ ok: false, error: "phone required" });
+  const faqs = (sessions[sessionId] && sessions[sessionId].lang === 'en') ? faqsEN : faqsES;
+  const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
+  const msg = `Revolution Dive: puedes completar tu reserva aquí -> ${reserveUrl}`;
+  try {
+    if (!twilio) return res.status(500).json({ ok: false, error: "Twilio not configured" });
+    const resp = await sendWhatsApp(phone, msg);
+    return res.json({ ok: true, sid: resp.sid });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 app.post('/notify', async (req, res) => {
   const { phone, message } = req.body || {};
   if (!phone || !message) return res.status(400).json({ ok: false, error: 'phone and message required' });
