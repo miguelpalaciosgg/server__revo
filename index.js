@@ -79,6 +79,13 @@ async function aiReply(messages) {
 app.post("/chat", async (req, res) => {
   const { userMessage, sessionId = "default" } = req.body;
   if (!userMessage) return res.json({ answer: "¿En qué puedo ayudarte?" });
+  const answer = await processMessage(userMessage, sessionId);
+  res.json({ answer });
+});
+
+// Reusable processor for incoming messages (used by /chat and the webhook)
+async function processMessage(userMessage, sessionId = "default") {
+  if (!userMessage) return "¿En qué puedo ayudarte?";
 
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
@@ -96,9 +103,7 @@ app.post("/chat", async (req, res) => {
   }
 
   const faqs = s.lang === "en" ? faqsEN : faqsES;
-  const reserveUrl =
-    faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
-  const contact = faqs.contacto || faqs.contact || {};
+  const reserveUrl = faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
 
   const system = {
     role: "system",
@@ -108,40 +113,27 @@ app.post("/chat", async (req, res) => {
         : `Eres un asistente comercial de un centro de buceo. Nunca confirmes reservas. Envía al usuario a ${reserveUrl}.`,
   };
 
-  const messages = [
-    system,
-    ...s.history.slice(-6),
-    { role: "user", content: userMessage },
-  ];
+  const messages = [system, ...s.history.slice(-6), { role: "user", content: userMessage }];
 
   let answer = "";
   try {
     const raw = await aiReply(messages);
     const body = stripGreeting(raw);
     if (!s.greeted) {
-      answer =
-        s.lang === "en"
-          ? `Hi! ${body}`
-          : `¡Hola! ${body}`;
+      answer = s.lang === "en" ? `Hi! ${body}` : `¡Hola! ${body}`;
       s.greeted = true;
     } else {
       answer = body;
     }
-  } catch {
-    answer =
-      s.lang === "en"
-        ? "I can help with dives, courses and bookings."
-        : "Puedo ayudarte con inmersiones, cursos y reservas.";
+  } catch (err) {
+    answer = s.lang === "en" ? "I can help with dives, courses and bookings." : "Puedo ayudarte con inmersiones, cursos y reservas.";
   }
 
-  s.history.push(
-    { role: "user", content: userMessage },
-    { role: "assistant", content: answer }
-  );
+  s.history.push({ role: "user", content: userMessage }, { role: "assistant", content: answer });
   if (s.history.length > 20) s.history.shift();
 
-  res.json({ answer });
-});
+  return answer;
+}
 
 /* ========= 🔥 WEBHOOK WHATSAPP (LO NUEVO) ========= */
 app.post("/webhook/whatsapp", async (req, res) => {
@@ -154,17 +146,8 @@ app.post("/webhook/whatsapp", async (req, res) => {
 
     const sessionId = `wa-${from}`;
 
-    const r = await fetch("https://server-revo.onrender.com", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userMessage: incoming,
-        sessionId,
-      }),
-    });
-
-    const data = await r.json();
-    const answer = data.answer || "Gracias por tu mensaje 🙂";
+    // Process the message locally instead of fetching the public URL
+    const answer = (await processMessage(incoming, sessionId)) || "Gracias por tu mensaje 🙂";
 
     res.type("text/xml").send(`
       <Response>
