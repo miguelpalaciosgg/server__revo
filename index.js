@@ -149,9 +149,24 @@ app.post("/webhook/whatsapp", async (req, res) => {
     // Process the message locally instead of fetching the public URL
     const answer = (await processMessage(incoming, sessionId)) || "Gracias por tu mensaje 🙂";
 
+    // Twilio has a concatenated message limit (~1600 chars). Truncate long replies
+    let outAnswer = answer;
+    try {
+      const maxLen = 1500;
+      if (outAnswer && outAnswer.length > maxLen) {
+        const s = sessions[sessionId];
+        const lang = s?.lang || "es";
+        const note = lang === "en" ? "\n\n(Shortened. See booking page for full info.)" : "\n\n(Respuesta resumida. Consulta la web para toda la información.)";
+        outAnswer = outAnswer.slice(0, maxLen - note.length) + note;
+        console.warn("WhatsApp reply truncated to fit Twilio limit", { originalLength: answer.length, truncatedLength: outAnswer.length, sessionId });
+      }
+    } catch (e) {
+      console.warn("Error while truncating WhatsApp reply:", e?.message || e);
+    }
+
     res.type("text/xml").send(`
       <Response>
-        <Message>${answer}</Message>
+        <Message>${outAnswer}</Message>
       </Response>
     `);
   } catch (err) {
