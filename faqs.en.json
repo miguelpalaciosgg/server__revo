@@ -62,4 +62,13 @@
     "phone": "+34 618 406 991"
   }
   ,"booking_url": "https://revolutiondive.com/paga-aqui/"
+  ,
+  "benidorm_island": {
+    "description": "Benidorm Island is the main dive site for the center. It features rocky bottoms, gorgonian formations and shallow walls, and commonly offers good Mediterranean visibility.",
+    "visibility": "Good (commonly 10–25 m, variable with conditions)",
+    "depth": "Typical dives range from 6 to 30 meters; sites suitable for all levels",
+    "common_species": ["moray eel","octopus","grouper","nudibranchs","damselfish","sargo","schools of small fish","gorgonians"],
+    "recommendation": "Suitable for try dives and guided dives; departures from the marina, guide included, trip duration approx. 3–4 hours.",
+    "source": ["https://revolutiondive.com/","https://divingstones.com/"]
+  }
 }
