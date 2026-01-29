@@ -104,6 +104,25 @@ async function processMessage(userMessage, sessionId = "default") {
 
   const faqs = s.lang === "en" ? faqsEN : faqsES;
   const reserveUrl = faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
+
+  // If this is the first reply in the session, send a short greeting with the booking link
+  // and an explicit AI notice, then mark the session as greeted. Subsequent replies
+  // will use the AI normally and will NOT include the greeting/link automatically.
+  if (!s.greeted) {
+    s.greeted = true;
+    const reserveLine = s.lang === "en" ? `Booking: ${reserveUrl}` : `Reservas: ${reserveUrl}`;
+    const aiLine = s.lang === "en" ? `I am an AI assistant.` : `Soy una IA asistente.`;
+    const helpLine = s.lang === "en" ? `How can I help you?` : `¿En qué puedo ayudarle?`;
+
+    const greeting = s.lang === "en"
+      ? `Hi! ${aiLine} ${reserveLine}\n\n${helpLine}`
+      : `¡Hola! ${aiLine} ${reserveLine}\n\n${helpLine}`;
+
+    // record conversation turn (user message + assistant greeting)
+    s.history.push({ role: "user", content: userMessage }, { role: "assistant", content: greeting });
+    if (s.history.length > 40) s.history.splice(0, s.history.length - 40);
+    return greeting;
+  }
   const faqsText = JSON.stringify(faqs, null, 2);
   const system = {
     role: "system",
