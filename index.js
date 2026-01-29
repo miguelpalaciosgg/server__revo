@@ -109,8 +109,8 @@ async function processMessage(userMessage, sessionId = "default") {
     role: "system",
     content:
       s.lang === "en"
-        ? `You are a commercial assistant for a dive center. When replying, follow these rules exactly:\n1) Begin with one short sentence instructing the user to make their booking on the website: ${reserveUrl}.\n2) Ask a single short clarification question (one sentence).\n3) State in one short sentence that you are an AI assistant.\n4) Provide all the information you have about the dive center (copy the JSON below exactly).\n5) Do NOT confirm bookings or accept payments; always redirect to the booking URL. Be concise and accurate.\n\nDIVE_CENTER_INFO:\n${faqsText}`
-        : `Eres un asistente comercial de un centro de buceo. Al responder, sigue estas reglas exactamente:\n1) Empieza con una frase corta indicando que reserve en la web: ${reserveUrl}.\n2) Haz una única pregunta corta de aclaración (una frase).\n3) Indica en una frase corta que eres una IA.\n4) Proporciona toda la información que tienes sobre el centro de buceo (copia el JSON abajo exactamente).\n5) NO confirmes reservas ni aceptes pagos; siempre deriva a la URL de reserva. Sé conciso y exacto.\n\nINFORMACIÓN_CENTRO:\n${faqsText}`,
+        ? `You are a concise commercial assistant for a dive center. Use the JSON below strictly as background knowledge; DO NOT print the JSON verbatim. When replying, follow these rules:\n- Answer the user's question directly and helpfully in up to 3 short sentences (be concise).\n- Ask one short clarification question if needed (one sentence).\n- Include one short sentence stating you are an AI assistant (e.g. "I am an AI assistant.").\n- If the user asks about booking, availability, or prices, include a single short line redirecting them to the booking page: ${reserveUrl}.\n- Never confirm a booking or accept payments; always redirect to the booking URL for payments.\nBe friendly, accurate, and brief.\n\nDIVE_CENTER_KNOWLEDGE (use but do not echo):\n${faqsText}`
+        : `Eres un asistente comercial conciso para un centro de buceo. Usa el JSON abajo únicamente como base de conocimiento; NO lo imprimas textualmente. Al responder, sigue estas reglas:\n- Responde la pregunta del usuario de forma directa y útil en un máximo de 3 frases cortas (sé conciso).\n- Haz una única pregunta corta de aclaración si hace falta (una frase).\n- Incluye una frase corta indicando que eres una IA (por ejemplo: "Soy una IA asistente.").\n- Si el usuario pregunta por reservas, disponibilidad o precios, añade una línea corta que redirija a la web de reservas: ${reserveUrl}.\n- Nunca confirmes reservas ni aceptes pagos; siempre deriva a la URL de reserva para pagos.\nSé amable, preciso y breve.\n\nCONOCIMIENTO_CENTRO (usar, no mostrar):\n${faqsText}`,
   };
 
   const messages = [system, ...s.history.slice(-6), { role: "user", content: userMessage }];
@@ -149,24 +149,9 @@ app.post("/webhook/whatsapp", async (req, res) => {
     // Process the message locally instead of fetching the public URL
     const answer = (await processMessage(incoming, sessionId)) || "Gracias por tu mensaje 🙂";
 
-    // Twilio has a concatenated message limit (~1600 chars). Truncate long replies
-    let outAnswer = answer;
-    try {
-      const maxLen = 1500;
-      if (outAnswer && outAnswer.length > maxLen) {
-        const s = sessions[sessionId];
-        const lang = s?.lang || "es";
-        const note = lang === "en" ? "\n\n(Shortened. See booking page for full info.)" : "\n\n(Respuesta resumida. Consulta la web para toda la información.)";
-        outAnswer = outAnswer.slice(0, maxLen - note.length) + note;
-        console.warn("WhatsApp reply truncated to fit Twilio limit", { originalLength: answer.length, truncatedLength: outAnswer.length, sessionId });
-      }
-    } catch (e) {
-      console.warn("Error while truncating WhatsApp reply:", e?.message || e);
-    }
-
     res.type("text/xml").send(`
       <Response>
-        <Message>${outAnswer}</Message>
+        <Message>${answer}</Message>
       </Response>
     `);
   } catch (err) {
