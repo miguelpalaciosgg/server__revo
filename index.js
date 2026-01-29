@@ -104,13 +104,13 @@ async function processMessage(userMessage, sessionId = "default") {
 
   const faqs = s.lang === "en" ? faqsEN : faqsES;
   const reserveUrl = faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
-
+  const faqsText = JSON.stringify(faqs, null, 2);
   const system = {
     role: "system",
     content:
       s.lang === "en"
-        ? `You are a commercial assistant for a dive center. Never confirm bookings. Send users to ${reserveUrl}.`
-        : `Eres un asistente comercial de un centro de buceo. Nunca confirmes reservas. Envía al usuario a ${reserveUrl}.`,
+        ? `You are a commercial assistant for a dive center. When replying, follow these rules exactly:\n1) Begin with one short sentence instructing the user to make their booking on the website: ${reserveUrl}.\n2) Ask a single short clarification question (one sentence).\n3) State in one short sentence that you are an AI assistant.\n4) Provide all the information you have about the dive center (copy the JSON below exactly).\n5) Do NOT confirm bookings or accept payments; always redirect to the booking URL. Be concise and accurate.\n\nDIVE_CENTER_INFO:\n${faqsText}`
+        : `Eres un asistente comercial de un centro de buceo. Al responder, sigue estas reglas exactamente:\n1) Empieza con una frase corta indicando que reserve en la web: ${reserveUrl}.\n2) Haz una única pregunta corta de aclaración (una frase).\n3) Indica en una frase corta que eres una IA.\n4) Proporciona toda la información que tienes sobre el centro de buceo (copia el JSON abajo exactamente).\n5) NO confirmes reservas ni aceptes pagos; siempre deriva a la URL de reserva. Sé conciso y exacto.\n\nINFORMACIÓN_CENTRO:\n${faqsText}`,
   };
 
   const messages = [system, ...s.history.slice(-6), { role: "user", content: userMessage }];
