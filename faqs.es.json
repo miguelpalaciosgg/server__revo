@@ -62,4 +62,13 @@
     "telefono": "+34 618 406 991"
   }
   ,"booking_url": "https://revolutiondive.com/paga-aqui/"
+  ,
+  "benidorm_island": {
+    "descripcion": "La Isla de Benidorm es el principal punto de inmersión del centro. Destaca por sus fondos rocosos, formaciones de gorgonias y paredes someras, y suele ofrecer buena visibilidad del Mediterráneo.",
+    "visibilidad": "Buena (habitualmente entre 10 y 25 m, variable según mar y viento)",
+    "profundidad": "Inmersiones típicas entre 6 y 30 metros; hay puntos aptos para todos los niveles",
+    "especies_comunes": ["morena","pulpo","mero","nudibranquios","damisela","sargos","bancos de peces","gorgonias"],
+    "recomendacion": "Ideal tanto para bautismos como para inmersiones guiadas; salidas desde el puerto del club náutico, guía incluido, duración aprox. 3-4 horas.",
+    "fuente": ["https://revolutiondive.com/","https://divingstones.com/"]
+  }
 }
