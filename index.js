@@ -124,11 +124,17 @@ async function processMessage(userMessage, sessionId = "default") {
     return greeting;
   }
   const faqsText = JSON.stringify(faqs, null, 2);
+  // Localized Benidorm island info used as background knowledge (do not echo verbatim)
+  const benidormInfo = s.lang === "en"
+    ? `Benidorm Island is a popular local dive spot with generally good visibility. Typical sightings include moray eels, octopus, groupers, colorful nudibranchs, damselfish and varied rocky reef communities with gorgonians and small schools of fish.`
+    : `La isla de Benidorm es un lugar de buceo popular con buena visibilidad. Es habitual ver morenas, pulpos, meros, nudibranquios coloridos, peces damisela y comunidades de arrecife rocoso con gorgonias y pequeños bancos de peces.`;
   const system = {
     role: "system",
     content:
       s.lang === "en"
         ? `Act as an expert and friendly diving center assistant. Your goal is to provide information about courses and introductory dives based EXCLUSIVELY on the context provided below.
+
+      Special rule: If the user asks what can be seen underwater around Benidorm Island or about marine life there, include a short (1-2 sentence) natural description mentioning typical species and that the island is an excellent spot with good visibility. Use BENIDORM_INFO as background (do not print it verbatim unless asked).
 
 Behavior Rules:
 1. DATA-DRIVEN: Use only the information from CENTER_KNOWLEDGE. If the answer is not there, kindly state that you don't have that information and suggest contacting human staff.
@@ -137,7 +143,10 @@ Behavior Rules:
 4. IDENTITY: Always end your response with a very brief signature in parentheses (e.g., "(AI Assistant)").
 
 CENTER_KNOWLEDGE:
-${faqsText}`
+${faqsText}
+
+BENIDORM_INFO:
+${benidormInfo}`
         : `Actúa como un asistente experto y amable del centro de buceo. Tu objetivo es informar sobre cursos y bautizos basándote EXCLUSIVAMENTE en el contexto proporcionado abajo.
 
 Reglas de comportamiento:
@@ -147,7 +156,10 @@ Reglas de comportamiento:
 4. COMPORTAMIENTO: No preguntes nada al responder a algo, puedes en su lugar decir si necesitas otra cosa me dices, o cualquier otra pregunta puedes hacerme, cosas así.
 
 CONOCIMIENTO_CENTRO:
-${faqsText}`,
+${faqsText}
+
+INFO_BENIDORM:
+${benidormInfo}`,
   };
 
   const messages = [system, ...s.history.slice(-6), { role: "user", content: userMessage }];
