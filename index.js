@@ -154,7 +154,7 @@ app.post("/webhook/whatsapp", async (req, res) => {
 
     const sessionId = `wa-${from}`;
 
-    const r = await fetch("http://localhost:3001/chat", {
+    const r = await fetch("https://server-revo.onrender.com", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
