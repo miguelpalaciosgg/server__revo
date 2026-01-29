@@ -4,84 +4,54 @@ const bodyParser = require("body-parser");
 require("dotenv").config();
 const fs = require("fs");
 const OpenAI = require("openai");
-// Twilio (optional)
+
+// Twilio
 const TWILIO_SID = process.env.TWILIO_SID;
 const TWILIO_TOKEN = process.env.TWILIO_TOKEN;
-const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // e.g. "whatsapp:+1415XXXXXXX"
-const TWILIO_CALL_FROM = process.env.TWILIO_CALL_FROM; // e.g. "+1415XXXXXXX"
+const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // whatsapp:+14155238886
+const TWILIO_CALL_FROM = process.env.TWILIO_CALL_FROM;
 let twilio = null;
 if (TWILIO_SID && TWILIO_TOKEN) {
   try {
-    twilio = require('twilio')(TWILIO_SID, TWILIO_TOKEN);
+    twilio = require("twilio")(TWILIO_SID, TWILIO_TOKEN);
   } catch (e) {
-    console.warn('Twilio library not available or failed to init:', e.message);
-    twilio = null;
+    console.warn("Twilio init failed:", e.message);
   }
 }
-
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
-
+app.use(bodyParser.urlencoded({ extended: false }));
 
 /* ========= MEMORIA ========= */
 const sessions = {};
 
-
 /* ========= UTIL ========= */
 function normalize(str) {
-  const s = (str ?? "").toString();
-  return s
+  return (str ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-
 function stripGreeting(answer = "") {
-  const a = (answer || "").toString().trim();
-  // Quitar puntuación inicial frecuente (¡, ¿, !, ?) y comillas
-  let out = a.replace(/^[\s¡!¿?«»"']+/u, "");
-  // Patrones de saludo (ES/EN) con variantes y signos repetidos
-  const patterns = [
-    /^(hola+|buenas|buenos\s+dias|buenas\s+tardes|buenas\s+noches)[\s,!.:\-–—]*/iu,
-    /^(hello+|hi+|hey+|welcome|good\s+(morning|afternoon|evening))[\s,!.:\-–—]*/iu,
-    // frases comunes finales que modelos añaden
-    /(how can I help you\??|en qué puedo ayudarte\??|how can I help\??|what can I do for you\??)$/iu
-  ];
-  for (const p of patterns) {
-    out = out.replace(p, "").trim();
-  }
-  // Si tras limpiar queda otro saludo repetido al inicio, eliminarlo
-  out = out.replace(/^[\s¡!¿?]*((hola|hello|hi|hey)[\s,!.:-]*)+/iu, "").trim();
-  return out || a;
+  let out = answer.trim();
+  out = out.replace(/^[¡!¿?"']+/u, "");
+  out = out.replace(/^(hola|hello|hi|hey|buenas)[\s,!.:-]*/iu, "");
+  return out.trim() || answer;
 }
 
 function validatePhone(v) {
   if (!v) return null;
   const s = v.toString().replace(/[^\d+]/g, "");
-  // simple E.164-ish check: + + country + digits and length reasonable
   if (/^\+\d{7,15}$/.test(s)) return s;
-  // try adding +34 as default for local Spanish numbers
   if (/^\d{9}$/.test(s)) return `+34${s}`;
   return null;
 }
 
-function scoreLead(session) {
-  const text = ((session.history || []).map(h => h.content).join(" ") + " " + (session.activity || "")).toLowerCase();
-  const hotHints = ["book", "reservation", "reserv", "quiero reservar", "comprar", "pagar"];
-  const warmHints = ["precio", "cuando", "cuando sale", "fechas", "horario", "cuánto", "interesa", "interes"];
-  let score = 0;
-  for (const h of hotHints) if (text.includes(h)) score += 2;
-  for (const h of warmHints) if (text.includes(h)) score += 1;
-  if (validatePhone(session.contact)) score += 2;
-  if (session.name) score += 1;
-  return score; // >3 => hot
-}
-
 async function sendWhatsApp(to, body) {
-  if (!twilio) throw new Error('Twilio not configured');
+  if (!twilio) throw new Error("Twilio not configured");
   return twilio.messages.create({
     from: TWILIO_WHATSAPP_FROM,
     to: `whatsapp:${to}`,
@@ -89,310 +59,132 @@ async function sendWhatsApp(to, body) {
   });
 }
 
-async function placeCall(to, twiml) {
-  if (!twilio) throw new Error('Twilio not configured');
-  return twilio.calls.create({
-    to: to,
-    from: TWILIO_CALL_FROM,
-    twiml,
-  });
-}
-
-
 /* ========= FAQs ========= */
 const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
 const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
 
-
 /* ========= OPENAI ========= */
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-
 async function aiReply(messages) {
   const r = await openai.chat.completions.create({
-    // Recomendado: gpt-4o-mini para coste/latencia; mantener compatibilidad si 3.5 está disponible
     model: process.env.OPENAI_MODEL || "gpt-3.5-turbo",
     temperature: 0.2,
-    messages
+    messages,
   });
   return r.choices?.[0]?.message?.content || "";
 }
-
-
-/* ========= PROMPT SIMPLE ========= */
-function systemPrompt(activity, activityInfo, lang, contact, reserveUrl) {
-  let facts = "";
-  if (activityInfo) {
-    const horariosStr = Array.isArray(activityInfo.horarios || activityInfo.schedule)
-      ? (activityInfo.horarios || activityInfo.schedule).join(", ")
-      : (activityInfo.horarios || activityInfo.schedule);
-    const activityPlaceHints = lang === 'en' ? {
-      "Try Dive": "Benidorm Island",
-      "Guided Dives": "Benidorm Island"
-    } : {
-      "Bautismo": "Isla de Benidorm",
-      "Inmersiones guiadas": "Isla de Benidorm"
-    };
-    const actName = activityInfo.nombre || activityInfo.name;
-    const lugar = activityPlaceHints[actName] || (lang === 'en' ? (faqsEN.location || 'Benidorm') : (faqsES.ubicacion || 'Benidorm'));
-    const precio = activityInfo.precio || activityInfo.price;
-    const requisitos = activityInfo.requisitos || activityInfo.requirements;
-    facts = lang === 'en'
-      ? `Facts: name=${actName}; price=${precio}; requirements=${requisitos}; schedule=${horariosStr}; location=${lugar}; contact=${contact?.phone || ''} ${contact?.email || ''}; booking=${reserveUrl}`
-      : `Datos: nombre=${actName}; precio=${precio}; requisitos=${requisitos}; horarios=${horariosStr}; lugar=${lugar}; contacto=${contact?.telefono || contact?.phone || ''} ${contact?.email || ''}; reserva=${reserveUrl}`;
-  }
-  if (lang === 'en') {
-    return `
-You are a commercial assistant for a dive center (information and bookings).
-Be brief, friendly, and ask at most ONE question per reply.
-Include a short, warm greeting only in your first answer; do not repeat greetings. Avoid emojis unless the user uses them.
-If the activity is already clear (${activity || 'not defined'}), do not repeat it; move to the next slot.
-Slots: level -> activity -> date -> booking/contact.
-If the user has no experience, recommend a Try Dive; its price is discounted from the Open Water course if they continue.
-CRITICAL: Never confirm bookings or guarantee availability. Direct the user to complete the booking at ${reserveUrl} or by calling ${contact?.phone}. You may offer to collect name and contact for follow-up, but clarify booking is completed via the link or phone.
-${facts}
-`;
-  }
-  return `
-Eres un asistente comercial de un centro de buceo (información y reservas).
-Responde breve, cercano y realiza como máximo UNA pregunta por turno.
-Incluye un saludo breve y cálido solo en la primera respuesta; después no repitas saludos. Evita emojis salvo que el usuario los use.
-Si la actividad ya está clara (${activity || "no definida"}), no la repitas; avanza al siguiente slot.
-Slots: nivel -> actividad -> fecha -> reserva/contacto.
-Si el usuario no tiene experiencia, recomienda Bautismo y comenta que su precio se descuenta del Open Water si continúa.
-MUY IMPORTANTE: Nunca confirmes reservas ni garantices disponibilidad. Indica que la reserva se completa en ${reserveUrl} o llamando al ${contact?.telefono || contact?.phone}. Puedes recoger nombre y contacto para seguimiento, pero aclara que la reserva se cierra por web o teléfono.
-${facts}
-`;
-}
-
 
 /* ========= CHAT ========= */
 app.post("/chat", async (req, res) => {
   const { userMessage, sessionId = "default" } = req.body;
   if (!userMessage) return res.json({ answer: "¿En qué puedo ayudarte?" });
 
-
   if (!sessions[sessionId]) {
     sessions[sessionId] = {
-      activity: null,
-      step: "INFO",
-      name: null,
-      contact: null,
-      history: [], // [{role:"user"|"assistant", content:string}]
-      greeted: false
+      history: [],
+      greeted: false,
+      lang: null,
     };
   }
-
 
   const s = sessions[sessionId];
   const text = normalize(userMessage);
 
-
-  // Detectar idioma (heurística simple por palabras clave)
   if (!s.lang) {
-    const enHints = ["hello", "hi", "hey", "book", "price", "when", "where", "email", "phone", "try dive", "guided dives", "snorkel", "snorkeling"];
-    const esHints = ["hola", "reserv", "precio", "cuando", "donde", "correo", "telefono", "bautismo", "inmersion", "inmersiones", "snorkel"];
-    const score = (arr) => arr.reduce((acc, w) => acc + (text.includes(w) ? 1 : 0), 0);
-    s.lang = score(enHints) > score(esHints) ? 'en' : 'es';
-  }
-  const lang = s.lang;
-  const faqs = lang === 'en' ? faqsEN : faqsES;
-
-
-  /* --- detectar actividad --- */
-  if (!s.activity) {
-    const hints = lang === 'en'
-      ? ["try dive", "discover scuba", "first dive"]
-      : ["bautizo", "bautismo", "bauti", "primer buceo", "descubrir buceo"];
-    if (hints.some(h => text.includes(h))) s.activity = lang === 'en' ? "Try Dive" : "Bautismo";
-    const diveHints = lang === 'en'
-      ? ["guided", "guided dives", "fun dive", "dives"]
-      : ["inmersion", "inmersiones", "guiadas", "salidas", "fun dive"];
-    if (diveHints.some(h => text.includes(h))) s.activity = s.activity || (lang === 'en' ? "Guided Dives" : "Inmersiones guiadas");
-    const owHints = ["open water", lang === 'en' ? "entry level" : "curso inicial", lang === 'en' ? "beginner course" : "iniciacion"];
-    if (owHints.some(h => text.includes(h))) s.activity = s.activity || "Open Water";
+    s.lang = /hello|hi|price|book/.test(text) ? "en" : "es";
   }
 
-
-  const activities = lang === 'en' ? (faqs.activities || []) : (faqs.actividades || []);
-  const activityInfo = activities.find(a => normalize(a.nombre || a.name) === normalize(s.activity));
-
-
-  /* --- pasar a reserva --- */
-  const wantsToReserve = (lang === 'en')
-    ? (text.includes("book") || text.includes("reservation"))
-    : text.includes("reserv");
-  if (wantsToReserve && s.step === "INFO") {
-    s.step = "ASK_NAME";
-    return res.json({ answer: lang === 'en' ? "Great! What's your name?" : "Perfecto 😊 ¿Cuál es tu nombre?" });
-  }
-
-
-  /* --- pedir nombre --- */
-  if (s.step === "ASK_NAME") {
-    if (userMessage.length < 2) {
-      return res.json({ answer: lang === 'en' ? "Please tell me your name" : "¿Me dices tu nombre, por favor?" });
-    }
-    s.name = userMessage.trim();
-    s.step = "ASK_CONTACT";
-    return res.json({ answer: lang === 'en' ? `Thanks, ${s.name}. Could you share a phone or email?` : `Gracias ${s.name}. ¿Me dejas un teléfono o email?` });
-  }
-
-
-  /* --- pedir contacto --- */
-  if (s.step === "ASK_CONTACT") {
-    s.contact = userMessage.trim();
-    s.step = "DONE";
-
-    const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
-    const contact = faqs.contacto || faqs.contact || {};
-    const msg = lang === 'en'
-      ? `Perfect! We registered your interest in ${s.activity}. To complete the booking please go to ${reserveUrl} or call ${contact.phone || contact.telefono}. We'll follow up shortly.`
-      : `¡Perfecto! Hemos registrado tu interés en ${s.activity}. Para completar la reserva entra en ${reserveUrl} o llama al ${contact.telefono || contact.phone}. Te contactaremos en breve.`;
-
-    return res.json({ answer: msg });
-  }
-
-
-  /* --- modo IA SOLO PARA INFO --- */
-  const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
+  const faqs = s.lang === "en" ? faqsEN : faqsES;
+  const reserveUrl =
+    faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
   const contact = faqs.contacto || faqs.contact || {};
-  const system = { role: "system", content: systemPrompt(s.activity, activityInfo, lang, contact, reserveUrl) };
-  const limitedHistory = s.history.slice(-8); // últimas 8 interacciones aprox
-  const messages = [system, ...limitedHistory, { role: "user", content: userMessage }];
+
+  const system = {
+    role: "system",
+    content:
+      s.lang === "en"
+        ? `You are a commercial assistant for a dive center. Never confirm bookings. Send users to ${reserveUrl}.`
+        : `Eres un asistente comercial de un centro de buceo. Nunca confirmes reservas. Envía al usuario a ${reserveUrl}.`,
+  };
+
+  const messages = [
+    system,
+    ...s.history.slice(-6),
+    { role: "user", content: userMessage },
+  ];
+
   let answer = "";
   try {
     const raw = await aiReply(messages);
-    // Normalizar respuesta del modelo
-    let body = stripGreeting(raw).replace(/\s{2,}/g, " ").trim();
-    // Colapsar múltiples signos de exclamación/interrogación y puntos repetidos
-    body = body.replace(/[!¡]{2,}/g, "!").replace(/[?]{2,}/g, "?").replace(/\.{3,}/g, "...");
-    // Quitar frases de cierre/greeting que el modelo pudiera dejar al final
-    body = body.replace(/\b(how can I help you\??|en qué puedo ayudarte\??)\b/iu, "").trim();
-
-    const greeting = lang === 'en'
-      ? "I'm the AI assistant integrated with Revolution Dive. How can I help you?"
-      : "Soy el asistente integrado con IA de Revolution Dive. ¿En qué puedo ayudarte?";
-      
+    const body = stripGreeting(raw);
     if (!s.greeted) {
-      // si el modelo ya contenía una frase corta similar, evitar duplicarla
-      const simpleModelGreeting = /(en qué puedo ayudarte|how can I help you|how can I help)/i;
-      if (simpleModelGreeting.test(body)) {
-        body = body.replace(simpleModelGreeting, "").trim();
-      }
-      // detectar fragmentos de pregunta muy cortos y fusionarlos al saludo
-      const shortQuestion = body.match(/^\s*[¿?¡!]*\s*(hoy|mañana|ahora|cuando|cuándo|today|tomorrow|now|when)\s*[\?\!]*$/i);
-      if (shortQuestion) {
-        const q = shortQuestion[1].toLowerCase();
-        if (lang === 'en') {
-          // ejemplo: "How can I help you?" + "today" -> "How can I help you today?"
-          answer = greeting.replace(/\?$/, '') + ' ' + q + '?';
-        } else {
-          // español: "¿En qué puedo ayudarte?" + "hoy" -> "¿En qué puedo ayudarte hoy?"
-          // quitar el signo final para volver a añadir la pregunta con la palabra
-          const g = greeting.replace(/\?$/, '');
-          answer = g + ' ' + q + '?';
-        }
-      } else {
-        answer = body ? `${greeting} ${body}` : greeting;
-      }
-      // marcar greeted YA aquí para evitar duplicados en concurrencia
+      answer =
+        s.lang === "en"
+          ? `Hi! ${body}`
+          : `¡Hola! ${body}`;
       s.greeted = true;
     } else {
-      answer = body || (lang === 'en' ? "Claro, dime." : "Claro, dime.");
+      answer = body;
     }
-  } catch (err) {
-    const precio = activityInfo?.precio || activityInfo?.price || '';
-    const requisitos = activityInfo?.requisitos || activityInfo?.requirements || '';
-    const desc = activityInfo?.descripcion || activityInfo?.description || '';
-    const fallback = activityInfo
-      ? (lang === 'en' ? `${desc}. Price: ${precio}. Requirements: ${requisitos}. Would you like to check dates and availability?` : `${desc}. Precio: ${precio}. Requisitos: ${requisitos}. ¿Quieres que miremos fecha y disponibilidad?`)
-      : (lang === 'en' ? `I can help with Try Dives, courses (Open Water, Advanced), guided dives and bookings. What are you interested in?` : `Puedo ayudarte con Bautismo, cursos (Open Water, Advanced), inmersiones guiadas y reservas. ¿Qué te interesa?`);
-    answer = fallback;
+  } catch {
+    answer =
+      s.lang === "en"
+        ? "I can help with dives, courses and bookings."
+        : "Puedo ayudarte con inmersiones, cursos y reservas.";
   }
 
-
-  // Persistir en la historia
   s.history.push(
     { role: "user", content: userMessage },
     { role: "assistant", content: answer }
   );
-  // normalizar/validar contacto y marcar lead
-  if (s.contact) {
-    const phone = validatePhone(s.contact);
-    if (phone) s.contact = phone; // almacenar E.164-ish
-  }
-  const leadScore = scoreLead(s);
-  s.lead = { score: leadScore, status: leadScore > 3 ? "hot" : leadScore >= 2 ? "warm" : "cold" };
-  if (s.history.length > 20) {
-    s.history.splice(0, s.history.length - 20);
-  }
-
+  if (s.history.length > 20) s.history.shift();
 
   res.json({ answer });
 });
 
+/* ========= 🔥 WEBHOOK WHATSAPP (LO NUEVO) ========= */
+app.post("/webhook/whatsapp", async (req, res) => {
+  try {
+    const incoming = req.body.Body;
+    const from = req.body.From?.replace("whatsapp:", "");
+    if (!incoming || !from) {
+      return res.type("text/xml").send("<Response/>");
+    }
+
+    const sessionId = `wa-${from}`;
+
+    const r = await fetch("http://localhost:3001/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userMessage: incoming,
+        sessionId,
+      }),
+    });
+
+    const data = await r.json();
+    const answer = data.answer || "Gracias por tu mensaje 🙂";
+
+    res.type("text/xml").send(`
+      <Response>
+        <Message>${answer}</Message>
+      </Response>
+    `);
+  } catch (err) {
+    console.error("WhatsApp webhook error:", err.message);
+    res.type("text/xml").send(`
+      <Response>
+        <Message>Error temporal. Inténtalo de nuevo.</Message>
+      </Response>
+    `);
+  }
+});
 
 /* ========= ARRANQUE ========= */
 app.listen(process.env.PORT || 3001, () =>
   console.log("Assistant running")
 );
 
-
 /* ========= HEALTH ========= */
-app.get("/healthz", (req, res) => res.status(200).send("ok"));
-
-
-/* ========= TWILIO HELPERS / ENDPOINTS (optional) ========= */
-/* ========= SESSION / LEAD ENDPOINTS ========= */
-// obtener estado de sesión / lead
-app.get("/session/:id", (req, res) => {
-  const id = req.params.id || "default";
-  const s = sessions[id];
-  if (!s) return res.status(404).json({ ok: false, error: "session not found" });
-  return res.json({ ok: true, session: s });
-});
-
-// enviar enlace de reserva por WhatsApp (plantilla)
-app.post("/send-booking", async (req, res) => {
-  const { phone, sessionId = "default" } = req.body || {};
-  if (!phone) return res.status(400).json({ ok: false, error: "phone required" });
-  const faqs = (sessions[sessionId] && sessions[sessionId].lang === 'en') ? faqsEN : faqsES;
-  const reserveUrl = faqs.booking_url || faqs.booking?.url || "https://revolutiondive.com/paga-aqui/";
-  const msg = `Revolution Dive: puedes completar tu reserva aquí -> ${reserveUrl}`;
-  try {
-    if (!twilio) return res.status(500).json({ ok: false, error: "Twilio not configured" });
-    const resp = await sendWhatsApp(phone, msg);
-    return res.json({ ok: true, sid: resp.sid });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-});
-app.post('/notify', async (req, res) => {
-  const { phone, message } = req.body || {};
-  if (!phone || !message) return res.status(400).json({ ok: false, error: 'phone and message required' });
-  try {
-    if (!twilio) return res.status(500).json({ ok: false, error: 'Twilio not configured' });
-    const resp = await sendWhatsApp(phone, message);
-    return res.json({ ok: true, sid: resp.sid });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-app.post('/twilio-call', async (req, res) => {
-  const { phone, message } = req.body || {};
-  if (!phone) return res.status(400).json({ ok: false, error: 'phone required' });
-  try {
-    if (!twilio) return res.status(500).json({ ok: false, error: 'Twilio not configured' });
-    const twiml = `<Response><Say>${(message||'Hello from Revolution Dive').replace(/&/g,'and')}</Say></Response>`;
-    const resp = await placeCall(phone, twiml);
-    return res.json({ ok: true, sid: resp.sid });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-
-
-
+app.get("/healthz", (req, res) => res.send("ok"));
