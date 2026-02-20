@@ -162,8 +162,9 @@ ${benidormInfo}`,
 }
 
 /* ========= ARRANQUE ========= */
-app.listen(process.env.PORT || 3001, () =>
-  console.log("Assistant running")
+const port = process.env.PORT || 8080;
+app.listen(port, () =>
+  console.log(`Assistant running on port ${port}`)
 );
 
 /* ========= HEALTH ========= */
