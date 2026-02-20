@@ -5,20 +5,6 @@ require("dotenv").config();
 const fs = require("fs");
 const OpenAI = require("openai");
 
-// Twilio
-const TWILIO_SID = process.env.TWILIO_SID;
-const TWILIO_TOKEN = process.env.TWILIO_TOKEN;
-const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM; // whatsapp:+14155238886
-const TWILIO_CALL_FROM = process.env.TWILIO_CALL_FROM;
-let twilio = null;
-if (TWILIO_SID && TWILIO_TOKEN) {
-  try {
-    twilio = require("twilio")(TWILIO_SID, TWILIO_TOKEN);
-  } catch (e) {
-    console.warn("Twilio init failed:", e.message);
-  }
-}
-
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -48,15 +34,6 @@ function validatePhone(v) {
   if (/^\+\d{7,15}$/.test(s)) return s;
   if (/^\d{9}$/.test(s)) return `+34${s}`;
   return null;
-}
-
-async function sendWhatsApp(to, body) {
-  if (!twilio) throw new Error("Twilio not configured");
-  return twilio.messages.create({
-    from: TWILIO_WHATSAPP_FROM,
-    to: `whatsapp:${to}`,
-    body,
-  });
 }
 
 /* ========= FAQs ========= */
@@ -183,35 +160,6 @@ ${benidormInfo}`,
 
   return answer;
 }
-
-/* ========= 🔥 WEBHOOK WHATSAPP (LO NUEVO) ========= */
-app.post("/webhook/whatsapp", async (req, res) => {
-  try {
-    const incoming = req.body.Body;
-    const from = req.body.From?.replace("whatsapp:", "");
-    if (!incoming || !from) {
-      return res.type("text/xml").send("<Response/>");
-    }
-
-    const sessionId = `wa-${from}`;
-
-    // Process the message locally instead of fetching the public URL
-    const answer = (await processMessage(incoming, sessionId)) || "Gracias por tu mensaje 🙂";
-
-    res.type("text/xml").send(`
-      <Response>
-        <Message>${answer}</Message>
-      </Response>
-    `);
-  } catch (err) {
-    console.error("WhatsApp webhook error:", err.message);
-    res.type("text/xml").send(`
-      <Response>
-        <Message>Error temporal. Inténtalo de nuevo.</Message>
-      </Response>
-    `);
-  }
-});
 
 /* ========= ARRANQUE ========= */
 app.listen(process.env.PORT || 3001, () =>
