@@ -176,8 +176,7 @@ ${benidormInfo}`,
 
 /* ========= ARRANQUE ========= */
 const port = process.env.PORT || 8080;
-// Bind explicitly to 0.0.0.0 for container/cloud environments (e.g., Cloud Run)
-app.listen(port, "0.0.0.0", () => {
+app.listen(port, () => {
   console.log(`Assistant running on port ${port}`);
 });
 
