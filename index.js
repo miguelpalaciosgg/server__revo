@@ -1,14 +1,14 @@
 const express = require("express");
 const cors = require("cors");
-const bodyParser = require("body-parser");
 require("dotenv").config();
 const fs = require("fs");
 const OpenAI = require("openai");
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+// Use built-in Express body parsers (body-parser is deprecated for most cases)
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 /* ========= MEMORIA ========= */
 const sessions = {};
@@ -37,15 +37,28 @@ function validatePhone(v) {
 }
 
 /* ========= FAQs ========= */
-const faqsES = JSON.parse(fs.readFileSync("./faqs.es.json", "utf-8"));
-const faqsEN = JSON.parse(fs.readFileSync("./faqs.en.json", "utf-8"));
+function safeReadJSON(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch (err) {
+    console.warn(`[WARN] Could not read ${filePath}. Continuing with empty data.`);
+    return {};
+  }
+}
+
+const faqsES = safeReadJSON("./faqs.es.json");
+const faqsEN = safeReadJSON("./faqs.en.json");
 
 /* ========= OPENAI ========= */
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Allow the server to boot without OPENAI_API_KEY; we'll fail gracefully on use
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 async function aiReply(messages) {
+  if (!openai) throw new Error("OpenAI not configured");
   const r = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || "gpt-3.5-turbo",
+    // Default to a current, supported lightweight model
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     temperature: 0.2,
     messages,
   });
@@ -163,9 +176,10 @@ ${benidormInfo}`,
 
 /* ========= ARRANQUE ========= */
 const port = process.env.PORT || 8080;
-app.listen(port, () =>
-  console.log(`Assistant running on port ${port}`)
-);
+// Bind explicitly to 0.0.0.0 for container/cloud environments (e.g., Cloud Run)
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Assistant running on port ${port}`);
+});
 
 /* ========= HEALTH ========= */
 app.get("/healthz", (req, res) => res.send("ok"));
