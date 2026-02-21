@@ -3,22 +3,25 @@ const cors = require("cors");
 require("dotenv").config();
 const fs = require("fs");
 const OpenAI = require("openai");
+const { Pool } = require("pg"); // <-- NUEVO: Librería de base de datos
 
 const app = express();
 app.use(cors());
-// Use built-in Express body parsers (body-parser is deprecated for most cases)
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-/* ========= MEMORIA ========= */
-const sessions = {};
+/* ========= CONEXIÓN A BASE DE DATOS ========= */
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT || 5432,
+});
 
 /* ========= UTIL ========= */
 function normalize(str) {
-  return (str ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return (str ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 function stripGreeting(answer = "") {
@@ -28,15 +31,7 @@ function stripGreeting(answer = "") {
   return out.trim() || answer;
 }
 
-function validatePhone(v) {
-  if (!v) return null;
-  const s = v.toString().replace(/[^\d+]/g, "");
-  if (/^\+\d{7,15}$/.test(s)) return s;
-  if (/^\d{9}$/.test(s)) return `+34${s}`;
-  return null;
-}
-
-/* ========= FAQs ========= */
+/* ========= FAQs (Mantenemos los JSON por ahora) ========= */
 function safeReadJSON(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -45,19 +40,16 @@ function safeReadJSON(filePath) {
     return {};
   }
 }
-
 const faqsES = safeReadJSON("./faqs.es.json");
 const faqsEN = safeReadJSON("./faqs.en.json");
 
 /* ========= OPENAI ========= */
-// Allow the server to boot without OPENAI_API_KEY; we'll fail gracefully on use
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 async function aiReply(messages) {
   if (!openai) throw new Error("OpenAI not configured");
   const r = await openai.chat.completions.create({
-    // Default to a current, supported lightweight model
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     temperature: 0.2,
     messages,
@@ -65,111 +57,96 @@ async function aiReply(messages) {
   return r.choices?.[0]?.message?.content || "";
 }
 
-/* ========= CHAT ========= */
+/* ========= LÓGICA DEL CHAT ========= */
 app.post("/chat", async (req, res) => {
-  const { userMessage, sessionId = "default" } = req.body;
+  // Ahora pediremos el número de teléfono o un ID único
+  const { userMessage, telefono = "web_anonimo" } = req.body; 
   if (!userMessage) return res.json({ answer: "¿En qué puedo ayudarte?" });
-  const answer = await processMessage(userMessage, sessionId);
-  res.json({ answer });
+  
+  try {
+    const answer = await processMessage(userMessage, telefono);
+    res.json({ answer });
+  } catch (error) {
+    console.error("Error procesando mensaje:", error);
+    res.status(500).json({ answer: "Lo siento, tuve un problema técnico. ¿Puedes repetirlo?" });
+  }
 });
 
-// Reusable processor for incoming messages (used by /chat and the webhook)
-async function processMessage(userMessage, sessionId = "default") {
-  if (!userMessage) return "¿En qué puedo ayudarte?";
-
-  if (!sessions[sessionId]) {
-    sessions[sessionId] = {
-      history: [],
-      greeted: false,
-      lang: null,
-    };
+async function processMessage(userMessage, telefono) {
+  // 1. BUSCAR O CREAR USUARIO EN LA BASE DE DATOS
+  let userQuery = await pool.query('SELECT id_usuario FROM usuarios WHERE telefono = $1', [telefono]);
+  let idUsuario;
+  
+  if (userQuery.rows.length === 0) {
+    const newUser = await pool.query(
+      'INSERT INTO usuarios (telefono) VALUES ($1) RETURNING id_usuario', 
+      [telefono]
+    );
+    idUsuario = newUser.rows[0].id_usuario;
+  } else {
+    idUsuario = userQuery.rows[0].id_usuario;
   }
 
-  const s = sessions[sessionId];
+  // 2. BUSCAR O CREAR SESIÓN ABIERTA
+  let sessionQuery = await pool.query(
+    "SELECT id_sesion FROM sesiones_chat WHERE id_usuario = $1 AND estado = 'abierta' ORDER BY fecha_inicio DESC LIMIT 1",
+    [idUsuario]
+  );
+  let idSesion;
+
+  if (sessionQuery.rows.length === 0) {
+    const newSession = await pool.query(
+      "INSERT INTO sesiones_chat (id_usuario, plataforma) VALUES ($1, 'web') RETURNING id_sesion",
+      [idUsuario]
+    );
+    idSesion = newSession.rows[0].id_sesion;
+  } else {
+    idSesion = sessionQuery.rows[0].id_sesion;
+  }
+
+  // 3. RECUPERAR EL HISTORIAL DE ESA SESIÓN
+  const historyQuery = await pool.query(
+    'SELECT remitente, contenido FROM mensajes WHERE id_sesion = $1 ORDER BY fecha_hora ASC LIMIT 20',
+    [idSesion]
+  );
+  
+  // Transformar de la BD al formato de OpenAI
+  const dbHistory = historyQuery.rows.map(row => ({
+    role: row.remitente === 'usuario' ? 'user' : 'assistant',
+    content: row.contenido
+  }));
+
+  // Detectar idioma y armar el sistema (tu lógica original)
   const text = normalize(userMessage);
-
-  if (!s.lang) {
-    s.lang = /hello|hi|price|book/.test(text) ? "en" : "es";
-  }
-
-  const faqs = s.lang === "en" ? faqsEN : faqsES;
-  const reserveUrl = faqs.booking_url || "https://revolutiondive.com/paga-aqui/";
-
-  // If this is the first reply in the session, send a short greeting with the booking link
-  // and an explicit AI notice, then mark the session as greeted. Subsequent replies
-  // will use the AI normally and will NOT include the greeting/link automatically.
-  if (!s.greeted) {
-    s.greeted = true;
-    const reserveLine = s.lang === "en" ? `Booking: ${reserveUrl}` : `Reservas: ${reserveUrl}`;
-    const aiLine = s.lang === "en" ? `I am an AI assistant.` : `Soy una IA asistente.`;
-    const helpLine = s.lang === "en" ? `How can I help you?` : `¿En qué puedo ayudarle?`;
-
-    const greeting = s.lang === "en"
-      ? `Hi! ${aiLine} ${reserveLine}\n\n${helpLine}`
-      : `¡Hola! ${aiLine} ${reserveLine}\n\n${helpLine}`;
-
-    // record conversation turn (user message + assistant greeting)
-    s.history.push({ role: "user", content: userMessage }, { role: "assistant", content: greeting });
-    if (s.history.length > 40) s.history.splice(0, s.history.length - 40);
-    return greeting;
-  }
+  const lang = /hello|hi|price|book/.test(text) ? "en" : "es";
+  const faqs = lang === "en" ? faqsEN : faqsES;
+  const benidormInfo = lang === "en" ? "Benidorm Island is a popular..." : "La isla de Benidorm es...";
   const faqsText = JSON.stringify(faqs, null, 2);
-  // Localized Benidorm island info used as background knowledge (do not echo verbatim)
-  const benidormInfo = s.lang === "en"
-    ? `Benidorm Island is a popular local dive spot with generally good visibility. Typical sightings include moray eels, octopus, groupers, colorful nudibranchs, damselfish and varied rocky reef communities with gorgonians and small schools of fish.`
-    : `La isla de Benidorm es un lugar de buceo popular con buena visibilidad. Es habitual ver morenas, pulpos, meros, nudibranquios coloridos, peces damisela y comunidades de arrecife rocoso con gorgonias y pequeños bancos de peces.`;
-  const system = {
+
+  const systemMessage = {
     role: "system",
-    content:
-      s.lang === "en"
-        ? `Act as an expert and friendly diving center assistant. Your goal is to provide information about courses and introductory dives based EXCLUSIVELY on the context provided below.
-
-      Special rule: If the user asks what can be seen underwater around Benidorm Island or about marine life there, include a short (1-2 sentence) natural description mentioning typical species and that the island is an excellent spot with good visibility. Use BENIDORM_INFO as background (do not print it verbatim unless asked).
-
-Behavior Rules:
-1. DATA-DRIVEN: Use only the information from CENTER_KNOWLEDGE. If the answer is not there, kindly state that you don't have that information and suggest contacting human staff.
-2. CONCISENESS: Be brief and direct, but ensure you answer the full question. Do not use unnecessary commercial filler.
-3. BOOKINGS: Never confirm a booking. If explicitly asked to book, provide the link. If not explicitly asked, DO NOT provide the link.
-4. IDENTITY: Always end your response with a very brief signature in parentheses (e.g., "(AI Assistant)").
-
-CENTER_KNOWLEDGE:
-${faqsText}
-
-BENIDORM_INFO:
-${benidormInfo}`
-        : `Actúa como un asistente experto y amable del centro de buceo. Tu objetivo es informar sobre cursos y bautizos basándote EXCLUSIVAMENTE en el contexto proporcionado abajo.
-
-Reglas de comportamiento:
-1. BASADO EN DATOS: Usa solo la información del CONOCIMIENTO_CENTRO. Si la respuesta no está ahí, di amablemente que no tienes esa información y sugiere que contacten al personal humano.
-2. CONCISIÓN: Sé breve y directo, pero asegúrate de responder la duda completa. No uses relleno comercial innecesario.
-3. RESERVAS: Nunca confirmes una reserva. Si te piden reservar explícitamente, facilita el enlace. Si no te lo piden, NO pongas el enlace.
-4. COMPORTAMIENTO: No preguntes nada al responder a algo, puedes en su lugar decir si necesitas otra cosa me dices, o cualquier otra pregunta puedes hacerme, cosas así.
-
-CONOCIMIENTO_CENTRO:
-${faqsText}
-
-INFO_BENIDORM:
-${benidormInfo}`,
+    content: `Actúa como un asistente del centro de buceo. Responde brevemente basándote en: \n${faqsText}\nInfo: ${benidormInfo}`
   };
 
-  const messages = [system, ...s.history.slice(-6), { role: "user", content: userMessage }];
+  const messages = [systemMessage, ...dbHistory, { role: "user", content: userMessage }];
 
+  // 4. GENERAR RESPUESTA CON LA IA
   let answer = "";
   try {
-    const raw = await aiReply(messages);
-    const body = stripGreeting(raw);
-    if (!s.greeted) {
-      answer = s.lang === "en" ? `Hi! ${body}` : `¡Hola! ${body}`;
-      s.greeted = true;
-    } else {
-      answer = body;
-    }
+    answer = await aiReply(messages);
   } catch (err) {
-    answer = s.lang === "en" ? "I can help with dives, courses and bookings." : "Puedo ayudarte con inmersiones, cursos y reservas.";
+    answer = "Puedo ayudarte con inmersiones, cursos y reservas.";
   }
 
-  s.history.push({ role: "user", content: userMessage }, { role: "assistant", content: answer });
-  if (s.history.length > 20) s.history.shift();
+  // 5. GUARDAR AMBOS MENSAJES EN LA BASE DE DATOS
+  await pool.query(
+    "INSERT INTO mensajes (id_sesion, remitente, contenido) VALUES ($1, 'usuario', $2)",
+    [idSesion, userMessage]
+  );
+  await pool.query(
+    "INSERT INTO mensajes (id_sesion, remitente, contenido) VALUES ($1, 'bot', $2)",
+    [idSesion, answer]
+  );
 
   return answer;
 }
@@ -179,6 +156,3 @@ const port = process.env.PORT || 8080;
 app.listen(port, () => {
   console.log(`Assistant running on port ${port}`);
 });
-
-/* ========= HEALTH ========= */
-app.get("/healthz", (req, res) => res.send("ok"));
