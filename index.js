@@ -29,7 +29,7 @@ async function aiReply(messages) {
   const history = messages.filter(m => m.role !== "system");
   
   // Quitamos configuraciones complejas para evitar el error 400
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
   // Construimos un único mensaje de texto gigante con toda la conversación
   let prompt = systemMsg + "\n\n--- HISTORIAL DE LA CONVERSACIÓN ---\n";
