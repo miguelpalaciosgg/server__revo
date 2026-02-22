@@ -2,21 +2,16 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { Pool } = require("pg");
+const { Firestore } = require("@google-cloud/firestore");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-/* ========= CONEXIÓN A BASE DE DATOS ========= */
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
-});
+/* ========= CONEXIÓN A BASE DE DATOS FIRESTORE ========= */
+// ¡Magia! No hace falta poner usuario, contraseña ni puerto.
+const db = new Firestore(); 
 
 /* ========= UTIL ========= */
 function normalize(str) {
@@ -30,17 +25,14 @@ const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 async function aiReply(messages) {
   if (!genAI) throw new Error("La clave de Gemini no está configurada");
   
-  // Separamos las instrucciones del sistema del resto de la charla
   const systemMsg = messages.find(m => m.role === "system")?.content || "";
   const history = messages.filter(m => m.role !== "system");
   
-  // Configuramos el motor de Google
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
+    model: "gemini-1.5-flash", // ¡Ya corregido!
     systemInstruction: systemMsg
   });
 
-  // Adaptamos el historial al formato de Gemini
   const geminiHistory = history.slice(0, -1).map(m => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }]
@@ -48,7 +40,6 @@ async function aiReply(messages) {
   
   const lastMessage = history[history.length - 1].content;
 
-  // Iniciamos el chat y enviamos el mensaje
   const chat = model.startChat({
     history: geminiHistory,
     generationConfig: { temperature: 0.2 },
@@ -73,48 +64,69 @@ app.post("/chat", async (req, res) => {
 });
 
 async function processMessage(userMessage, telefono) {
-  // 1. BUSCAR O CREAR USUARIO
-  let userQuery = await pool.query('SELECT id_usuario FROM usuarios WHERE telefono = $1', [telefono]);
+  // 1. BUSCAR O CREAR USUARIO EN FIRESTORE
+  const usersRef = db.collection('usuarios');
+  const userQuery = await usersRef.where('telefono', '==', telefono).get();
+  
   let idUsuario;
-  if (userQuery.rows.length === 0) {
-    const newUser = await pool.query('INSERT INTO usuarios (telefono) VALUES ($1) RETURNING id_usuario', [telefono]);
-    idUsuario = newUser.rows[0].id_usuario;
+  if (userQuery.empty) {
+    const newUser = await usersRef.add({ 
+      telefono: telefono, 
+      fecha_creacion: Firestore.FieldValue.serverTimestamp() 
+    });
+    idUsuario = newUser.id;
   } else {
-    idUsuario = userQuery.rows[0].id_usuario;
+    idUsuario = userQuery.docs[0].id;
   }
 
   // 2. BUSCAR O CREAR SESIÓN
-  let sessionQuery = await pool.query(
-    "SELECT id_sesion FROM sesiones_chat WHERE id_usuario = $1 AND estado = 'abierta' ORDER BY fecha_inicio DESC LIMIT 1", [idUsuario]
-  );
+  const sessionsRef = db.collection('sesiones_chat');
+  const sessionQuery = await sessionsRef
+    .where('id_usuario', '==', idUsuario)
+    .where('estado', '==', 'abierta')
+    .get();
+    
   let idSesion;
-  if (sessionQuery.rows.length === 0) {
-    const newSession = await pool.query("INSERT INTO sesiones_chat (id_usuario, plataforma) VALUES ($1, 'web') RETURNING id_sesion", [idUsuario]);
-    idSesion = newSession.rows[0].id_sesion;
+  if (sessionQuery.empty) {
+    const newSession = await sessionsRef.add({ 
+      id_usuario: idUsuario, 
+      plataforma: 'web',
+      estado: 'abierta',
+      fecha_inicio: Firestore.FieldValue.serverTimestamp()
+    });
+    idSesion = newSession.id;
   } else {
-    idSesion = sessionQuery.rows[0].id_sesion;
+    idSesion = sessionQuery.docs[0].id;
   }
 
   // 3. RECUPERAR HISTORIAL
-  const historyQuery = await pool.query(
-    'SELECT remitente, contenido FROM mensajes WHERE id_sesion = $1 ORDER BY fecha_hora ASC LIMIT 20', [idSesion]
-  );
-  const dbHistory = historyQuery.rows.map(row => ({
-    role: row.remitente === 'usuario' ? 'user' : 'assistant',
-    content: row.contenido
-  }));
+  const historyQuery = await db.collection('mensajes')
+    .where('id_sesion', '==', idSesion)
+    .orderBy('fecha_hora', 'asc')
+    .limit(20)
+    .get();
+    
+  const dbHistory = historyQuery.docs.map(doc => {
+    const data = doc.data();
+    return {
+      role: data.remitente === 'usuario' ? 'user' : 'assistant',
+      content: data.contenido
+    };
+  });
 
-  // 4. DETECTAR IDIOMA Y LEER FAQs DE LA BD
+  // 4. DETECTAR IDIOMA Y LEER FAQs DE FIRESTORE
   const text = normalize(userMessage);
   const lang = /hello|hi|price|book/.test(text) ? "en" : "es";
   
-  const faqsQuery = await pool.query(
-    "SELECT categoria, pregunta_ejemplo, respuesta FROM conocimiento_faqs WHERE idioma = $1 AND activa = true", [lang]
-  );
+  const faqsQuery = await db.collection('conocimiento_faqs')
+    .where('idioma', '==', lang)
+    .where('activa', '==', true)
+    .get();
   
-  const faqsText = faqsQuery.rows.map(faq => 
-    `Categoría: ${faq.categoria} | Pregunta: ${faq.pregunta_ejemplo} | Respuesta: ${faq.respuesta}`
-  ).join("\n");
+  const faqsText = faqsQuery.docs.map(doc => {
+    const faq = doc.data();
+    return `Categoría: ${faq.categoria} | Pregunta: ${faq.pregunta_ejemplo} | Respuesta: ${faq.respuesta}`;
+  }).join("\n");
 
   const benidormInfo = lang === "en" 
     ? "Benidorm Island is a popular dive site. Good visibility (10-25m). Common species: moray eel, octopus, grouper, etc." 
@@ -136,9 +148,20 @@ async function processMessage(userMessage, telefono) {
     answer = lang === "en" ? "I can help with dives, courses and bookings." : "Puedo ayudarte con inmersiones, cursos y reservas.";
   }
 
-  // 6. GUARDAR MENSAJES
-  await pool.query("INSERT INTO mensajes (id_sesion, remitente, contenido) VALUES ($1, 'usuario', $2)", [idSesion, userMessage]);
-  await pool.query("INSERT INTO mensajes (id_sesion, remitente, contenido) VALUES ($1, 'bot', $2)", [idSesion, answer]);
+  // 6. GUARDAR MENSAJES EN FIRESTORE
+  await db.collection('mensajes').add({ 
+    id_sesion: idSesion, 
+    remitente: 'usuario', 
+    contenido: userMessage,
+    fecha_hora: Firestore.FieldValue.serverTimestamp()
+  });
+  
+  await db.collection('mensajes').add({ 
+    id_sesion: idSesion, 
+    remitente: 'bot', 
+    contenido: answer,
+    fecha_hora: Firestore.FieldValue.serverTimestamp()
+  });
 
   return answer;
 }
