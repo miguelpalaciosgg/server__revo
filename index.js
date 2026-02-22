@@ -28,24 +28,22 @@ async function aiReply(messages) {
   const systemMsg = messages.find(m => m.role === "system")?.content || "";
   const history = messages.filter(m => m.role !== "system");
   
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash", // ¡Ya corregido!
-    systemInstruction: systemMsg
-  });
+  // Quitamos configuraciones complejas para evitar el error 400
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  const geminiHistory = history.slice(0, -1).map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }]
-  }));
+  // Construimos un único mensaje de texto gigante con toda la conversación
+  let prompt = systemMsg + "\n\n--- HISTORIAL DE LA CONVERSACIÓN ---\n";
   
-  const lastMessage = history[history.length - 1].content;
-
-  const chat = model.startChat({
-    history: geminiHistory,
-    generationConfig: { temperature: 0.2 },
+  history.slice(0, -1).forEach(m => {
+    const remitente = m.role === "assistant" ? "Asistente" : "Usuario";
+    prompt += `${remitente}: ${m.content}\n`;
   });
+  
+  const ultimoMensaje = history[history.length - 1].content;
+  prompt += `\n--- NUEVO MENSAJE ---\nUsuario: ${ultimoMensaje}\nAsistente:`;
 
-  const result = await chat.sendMessage(lastMessage);
+  // Generamos la respuesta de forma directa
+  const result = await model.generateContent(prompt);
   return result.response.text();
 }
 
