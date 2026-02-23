@@ -164,51 +164,6 @@ async function processMessage(userMessage, telefono) {
   return answer;
 }
 
-/* ========= RUTA DE INYECCIÓN MASIVA DE DATOS ========= */
-app.get("/inyectar-todo", async (req, res) => {
-  const masterData = [
-    // --- CURSOS AVANZADOS ---
-    { categoria: "Cursos", idioma: "es", activa: true, pregunta_ejemplo: "¿Qué es el Rescue Diver?", respuesta: "El curso Rescue Diver enseña a gestionar problemas en el agua por 280€. Si haces el pack con EFR sale por 380€." },
-    { categoria: "Cursos", idioma: "es", activa: true, pregunta_ejemplo: "¿Hacéis el curso de primeros auxilios?", respuesta: "Sí, el curso EFR (Emergency First Response) cuesta 120€ y es vital para buceadores de rescate." },
-    { categoria: "Cursos", idioma: "es", activa: true, pregunta_ejemplo: "¿Puedo ser profesional del buceo?", respuesta: "Sí, impartimos el curso Dive Master por 380€ para iniciar tu carrera profesional." },
-    
-    // --- ESPECIALIDADES Y REFRESH ---
-    { categoria: "Cursos", idioma: "es", activa: true, pregunta_ejemplo: "¿Qué especialidades tenéis?", respuesta: "Ofrecemos Nitrox, Buceo Profundo, Navegación, Nocturna, Flotabilidad y Traje Seco. ¡Pregúntanos precios!" },
-    { categoria: "Cursos", idioma: "es", activa: true, pregunta_ejemplo: "Llevo tiempo sin bucear, ¿qué hago?", respuesta: "Te recomendamos un Refresh (recordatorio) desde 80€ con equipo incluido para recuperar confianza." },
-    
-    // --- SERVICIOS Y TIENDA ---
-    { categoria: "Servicios", idioma: "es", activa: true, pregunta_ejemplo: "¿Tenéis tienda de buceo?", respuesta: "Sí, vendemos material de Mares, Cressi y Aqualung. Te asesoramos en la compra de tu equipo." },
-    { categoria: "Servicios", idioma: "es", activa: true, pregunta_ejemplo: "¿Revisáis reguladores?", respuesta: "Sí, somos servicio técnico oficial para revisión de reguladores y cambio de baterías de ordenadores." },
-    { categoria: "Información", idioma: "es", activa: true, pregunta_ejemplo: "¿El seguro de buceo es obligatorio?", respuesta: "Sí, es obligatorio. Si no tienes uno anual, podemos tramitarte uno diario o mensual en el centro." }
-  ];
-
-  try {
-    const batch = db.batch();
-    
-    // Generamos las versiones en inglés automáticamente
-    masterData.forEach(item => {
-      // Guardar versión Español
-      const docEs = db.collection('conocimiento_faqs').doc();
-      batch.set(docEs, item);
-      
-      // Crear y guardar versión Inglés (Traducción rápida)
-      const docEn = db.collection('conocimiento_faqs').doc();
-      let resEn = item.respuesta;
-      if(item.pregunta_ejemplo.includes("Rescue")) resEn = "Rescue Diver course: 280€. Rescue + EFR pack: 380€.";
-      if(item.pregunta_ejemplo.includes("tiempo sin bucear")) resEn = "We offer Refresh courses from 80€ including equipment.";
-      if(item.pregunta_ejemplo.includes("tienda")) resEn = "Yes, we have a shop with Mares, Cressi and Aqualung gear.";
-      if(item.pregunta_ejemplo.includes("seguro")) resEn = "Dive insurance is mandatory. We can issue daily or monthly insurance at the center.";
-      
-      batch.set(docEn, { ...item, idioma: "en", respuesta: resEn });
-    });
-
-    await batch.commit();
-    res.send("<h1>🚀 ¡Cerebro actualizado! Todos los datos de la web están en Firestore.</h1>");
-  } catch (error) {
-    res.status(500).send("Error: " + error.message);
-  }
-});
-
 /* ========= ARRANQUE ========= */
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
