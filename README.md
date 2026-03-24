@@ -1,6 +1,6 @@
 # 🤖 Chatbot IA para WordPress con Google Cloud y Firebase
 
-Un asistente virtual inteligente desarrollado en Node.js, diseñado para integrarse fácilmente en sitios web de WordPress. El chatbot automatiza la atención al cliente respondiendo preguntas frecuentes (FAQs) en múltiples idiomas y actúa como herramienta de captación de *leads*, almacenando los datos de contacto directamente en Firebase.
+Un asistente virtual inteligente desarrollado en Node.js, diseñado para integrarse fácilmente en sitios web. El chatbot automatiza la atención al cliente respondiendo preguntas frecuentes (FAQs) en múltiples idiomas y actúa como herramienta de captación de *leads*, almacenando los datos de contacto directamente en Firebase.
 
 ## ✨ Características Principales
 
