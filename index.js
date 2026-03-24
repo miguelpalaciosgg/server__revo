@@ -10,7 +10,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 /* ========= CONEXIÓN A BASE DE DATOS FIRESTORE ========= */
-// ¡Magia! No hace falta poner usuario, contraseña ni puerto.
 const db = new Firestore({ databaseId: 'neo1' });
 
 /* ========= UTIL ========= */
