@@ -18,7 +18,7 @@
       "nombre": "Bautismo de buceo",
       "descripcion": "Primera experiencia de buceo guiada por instructor.",
       "precio": "95€",
-      "requisitos": "Edad mínima 10 años. Sin certificación necesaria. Apto médico recomendado.",
+      "requisitos": "Edad mínima 10 años. Sin certificación necesaria.",
       "horarios": ["09:00", "11:30", "15:00"]
     },
     {
