@@ -1,69 +1,64 @@
 {
   "centro": {
     "nombre": "Revolution Dive",
-    "ubicacion": "Puerto Comercial Benidorm, Paseo de Colón, 1 - Caseta 30, Benidorm (Alicante)",
+    "ubicacion": "Puerto Comercial Benidorm, Paseo de Colón, 1 - Caseta 30, 03501 Benidorm (Alicante)",
     "horario": "09:00-18:00; salidas a las 09:00, 11:30 y 15:00",
     "contacto": {
       "email": "reservas@revolutiondive.com",
-      "telefono": "+34 618 406 991"
+      "telefono_1": "+34 618 406 991",
+      "telefono_2": "+34 722 482 828"
     },
-    "booking_url": "https://revolutiondive.com/paga-aqui/"
+    "booking_url": "https://revolutiondive.com/paga-aqui/",
+    "web": "https://revolutiondive.com",
+    "certificaciones": "PADI 5 estrellas, certificado de calidad SICTEC",
+    "reportaje_fotografico": "Incluido en todas las actividades",
+    "que_traer": "Bañador, toalla, chanclas y ropa de cambio. Hay vestuario, baño y duchas en el centro. Si eres propenso al mareo, se recomienda biodramina con cafeína 30 min antes.",
+    "parking": "Parking del Mercado Central o Mercadona (5 min andando). Avenida de Xixo: aparcamiento gratuito (10 min andando por el paseo marítimo)."
   },
   "politica_reservas": {
     "senal": "20% del total",
-    "cancelacion": "48 horas de antelación"
+    "cancelacion": "48 horas de antelación",
+    "nota": "Los precios son por persona. Ofertas especiales para grupos, consultar."
   },
-  "actividades": [
-    {
-      "nombre": "Bautismo de buceo",
-      "descripcion": "Primera experiencia de buceo guiada por instructor.",
-      "precio": "95€",
-      "requisitos": "Edad mínima 10 años. Sin certificación necesaria.",
-      "horarios": ["09:00", "11:30", "15:00"]
-    },
-    {
-      "nombre": "Open Water (curso iniciación)",
-      "descripcion": "Curso de iniciación: teoría, piscina y mar.",
-      "precio": "380€",
-      "requisitos": "Edad mínima 10 años. Apto médico. Incluye teoría + piscina + mar.",
-      "horarios": ["09:00", "11:30", "15:00"]
-    },
-    {
-      "nombre": "Advanced (curso avanzado)",
-      "descripcion": "Curso avanzado para mejorar habilidades y profundidad.",
-      "precio": "320€",
-      "requisitos": "Certificación Open Water previa. Experiencia reciente.",
-      "horarios": ["09:00", "11:30", "15:00"]
-    },
-    {
-      "nombre": "Inmersiones guiadas",
-      "descripcion": "Salidas de buceo en Benidorm con guía titulado.",
-      "precio": "45€",
-      "requisitos": "Certificación vigente y seguro si aplica.",
-      "horarios": ["09:00", "11:30", "15:00"]
-    },
-    {
-      "nombre": "Alquiler de equipo",
-      "descripcion": "Material de buceo disponible para cursos y salidas.",
+  "tarifas_temporada_2026": {
+    "inmersiones": [
+      { "tipo": "Sencilla (botella y plomos)", "precio": "50€" },
+      { "tipo": "Sencilla (botella, plomos y equipo completo)", "precio": "85€" },
+      { "tipo": "Doble consecutiva (botella y plomos)", "precio": "85€" },
+      { "tipo": "Doble consecutiva (botella, plomos y equipo completo)", "precio": "150€" },
+      { "tipo": "Refresh simple (sin equipo)", "precio": "85€" },
+      { "tipo": "Refresh simple (con equipo)", "precio": "115€" },
+      { "tipo": "Refresh doble consecutiva (sin equipo)", "precio": "155€" },
+      { "tipo": "Refresh doble consecutiva (con equipo)", "precio": "195€" },
+      { "tipo": "Suplemento inmersión nocturna", "precio": "15€" }
+    ],
+    "alquiler_suelto": [
+      { "pieza": "Aletas, máscara, escarpín, guantes o capucha (por pieza)", "precio": "8€" },
+      { "pieza": "Regulador, neopreno, jacket o linterna (por pieza)", "precio": "8€" }
+    ],
+    "cursos": [
+      { "nombre": "Scuba Diver", "precio": "285€", "descripcion": "Curso básico de 2 días. Profundidad máxima 12m. Buceo supervisado por Divemaster o Instructor.", "requisitos": "Edad mínima 10 años. Saber nadar. Reconocimiento médico. Una foto." },
+      { "nombre": "Open Water Diver", "precio": "450€", "descripcion": "Curso de iniciación en 3 días: teoría (online o presencial), 1 práctica en piscina, 4 inmersiones en mar. Certificación para bucear hasta 18m en todo el mundo.", "requisitos": "Edad mínima 10 años. Saber nadar. Reconocimiento médico. Una foto." },
+      { "nombre": "Advanced Open Water Diver", "precio": "390€", "descripcion": "Curso avanzado: teoría + 5 inmersiones de especialidad (flotabilidad, navegación, nocturna, profunda, etc.). Capacita hasta 30m.", "requisitos": "Edad mínima 16 años. Saber nadar. Certificación Open Water o equivalente. Reconocimiento médico. Una foto." },
+      { "nombre": "Emergency First Response (EFR)", "precio": "140€", "descripcion": "Curso de primeros auxilios: RCP, vendajes, reanimación. Se realiza junto con el Rescue.", "requisitos": "Sin requisitos previos de buceo." },
+      { "nombre": "Rescue Diver", "precio": "290€", "descripcion": "Curso de rescate de 3-4 días: técnicas de salvamento, simulacros en mar.", "requisitos": "Edad mínima 16 años. 25 inmersiones registradas. Certificación Advanced o equivalente. Reconocimiento médico. Una foto." },
+      { "nombre": "Rescue Diver + EFR (pack)", "precio": "390€", "descripcion": "Pack completo: Rescue Diver + Emergency First Response juntos.", "requisitos": "Mismos que Rescue Diver." },
+      { "nombre": "Dive Master", "precio": "713€", "descripcion": "Primer nivel profesional. Mínimo 1 semana de curso.", "requisitos": "Edad mínima 18 años. 60 inmersiones registradas. Certificación Rescue + EFR o equivalente. Reconocimiento médico. Una foto." },
+      { "nombre": "Especialidades (2 inmersiones)", "precio": "270€" },
+      { "nombre": "Especialidades (3 inmersiones)", "precio": "330€" }
+    ],
+    "bautizo_buceo": [
+      { "tipo": "Barco en Isla de Benidorm (fotos incluidas)", "precio": "95€" },
+      { "tipo": "Playa (fotos no incluidas)", "precio": "75€" },
+      { "tipo": "Fotos (si no están incluidas)", "precio": "15€" }
+    ],
+    "bautizo_info": "Primer contacto con el buceo, sin experiencia previa. Incluye equipo, charla teórica, desplazamiento en barco (si es en isla) y actividad. Duración total aprox. 2,5 horas, hasta 6m de profundidad. Descuento en curso de iniciación por el importe del bautizo. Requisitos: edad mínima 10 años, saber nadar, no tener problemas de salud.",
+    "snorkel": {
+      "descripcion": "Excursión de snorkel guiada en las calas y playas de Benidorm, desde playa o barco. Guía especializado incluido.",
       "precio": "Consultar",
-      "requisitos": "Sujeto a disponibilidad y talla.",
-      "horarios": ["09:00", "11:30", "15:00"]
-    },
-    {
-      "nombre": "Nitrox",
-      "descripcion": "Opción de mezcla enriquecida para inmersiones.",
-      "precio": "Consultar",
-      "requisitos": "Certificación Nitrox o curso asociado.",
-      "horarios": ["Bajo solicitud"]
-    },
-    {
-      "nombre": "Snorkel",
-      "descripcion": "Excursión de snorkel guiada en Benidorm.",
-      "precio": "Consultar",
-      "requisitos": "Saber nadar. Equipo incluido según disponibilidad.",
-      "horarios": ["Mañana", "Tarde"]
+      "requisitos": "Saber nadar."
     }
-  ],
+  },
   "isla_benidorm": {
     "descripcion": "La Isla de Benidorm es el principal punto de inmersión del centro. Destaca por sus fondos rocosos, formaciones de gorgonias y paredes someras, y suele ofrecer buena visibilidad del Mediterráneo.",
     "visibilidad": "Buena (habitualmente entre 10 y 25 m, variable según mar y viento)",
