@@ -1,29 +1,43 @@
 {
+  "centro": {
+    "nombre": "Revolution Dive",
+    "ubicacion": "Puerto Comercial Benidorm, Paseo de Colón, 1 - Caseta 30, Benidorm (Alicante)",
+    "horario": "09:00-18:00; salidas a las 09:30 y 15:00",
+    "contacto": {
+      "email": "reservas@revolutiondive.com",
+      "telefono": "+34 618 406 991"
+    },
+    "booking_url": "https://revolutiondive.com/paga-aqui/"
+  },
+  "politica_reservas": {
+    "senal": "20% del total",
+    "cancelacion": "48 horas de antelación"
+  },
   "actividades": [
     {
-      "nombre": "Bautismo",
+      "nombre": "Bautismo de buceo",
       "descripcion": "Primera experiencia de buceo guiada por instructor.",
       "precio": "75€",
-      "requisitos": "Edad ≥ 10. Sin certificación. Apto médico recomendado.",
+      "requisitos": "Edad mínima 10 años. Sin certificación necesaria. Apto médico recomendado.",
       "horarios": ["09:30", "15:00"]
     },
     {
-      "nombre": "Open Water",
+      "nombre": "Open Water (curso iniciación)",
       "descripcion": "Curso de iniciación: teoría, piscina y mar.",
       "precio": "380€",
-      "requisitos": "Edad ≥ 10. Apto médico. Teoría + piscina + mar.",
+      "requisitos": "Edad mínima 10 años. Apto médico. Incluye teoría + piscina + mar.",
       "horarios": ["09:00-18:00"]
     },
     {
-      "nombre": "Advanced",
+      "nombre": "Advanced (curso avanzado)",
       "descripcion": "Curso avanzado para mejorar habilidades y profundidad.",
       "precio": "320€",
-      "requisitos": "Certificación Open Water. Experiencia reciente.",
+      "requisitos": "Certificación Open Water previa. Experiencia reciente.",
       "horarios": ["09:00-18:00"]
     },
     {
       "nombre": "Inmersiones guiadas",
-      "descripcion": "Salidas en Benidorm con guía titulado.",
+      "descripcion": "Salidas de buceo en Benidorm con guía titulado.",
       "precio": "45€",
       "requisitos": "Certificación vigente y seguro si aplica.",
       "horarios": ["09:30", "15:00"]
@@ -50,25 +64,11 @@
       "horarios": ["Mañana", "Tarde"]
     }
   ],
-  "ubicacion": "Puerto Comercial Benidorm, Paseo de Colón, 1 - Caseta 30, Benidorm (Alicante)",
-  "horarios_generales": {
-    "Benidorm": "09:00-18:00; salidas 09:30 y 15:00"
-  },
-  "reservas": {
-    "politica": "Señal 20%, cancelación 48h"
-  },
-  "contacto": {
-    "email": "reservas@revolutiondive.com",
-    "telefono": "+34 618 406 991"
-  }
-  ,"booking_url": "https://revolutiondive.com/paga-aqui/"
-  ,
-  "benidorm_island": {
+  "isla_benidorm": {
     "descripcion": "La Isla de Benidorm es el principal punto de inmersión del centro. Destaca por sus fondos rocosos, formaciones de gorgonias y paredes someras, y suele ofrecer buena visibilidad del Mediterráneo.",
     "visibilidad": "Buena (habitualmente entre 10 y 25 m, variable según mar y viento)",
     "profundidad": "Inmersiones típicas entre 6 y 30 metros; hay puntos aptos para todos los niveles",
-    "especies_comunes": ["morena","pulpo","mero","nudibranquios","damisela","sargos","bancos de peces","gorgonias"],
-    "recomendacion": "Ideal tanto para bautismos como para inmersiones guiadas; salidas desde el puerto del club náutico, guía incluido, duración aprox. 3-4 horas.",
-    "fuente": ["https://revolutiondive.com/","https://divingstones.com/"]
+    "especies_comunes": ["morena", "pulpo", "mero", "nudibranquios", "damisela", "sargos", "bancos de peces", "gorgonias"],
+    "recomendacion": "Ideal tanto para bautismos como para inmersiones guiadas; salidas desde el puerto, guía incluido, duración aprox. 3-4 horas."
   }
 }
