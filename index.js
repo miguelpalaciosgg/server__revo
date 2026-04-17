@@ -49,14 +49,22 @@ async function aiReply(chatHistory) {
   });
 
   // Convertir historial al formato nativo de Gemini
-  const geminiHistory = chatHistory.slice(0, -1).map(m => ({
+  let geminiHistory = chatHistory.slice(0, -1).map(m => ({
     role: m.role === "assistant" ? "model" : "user",
     parts: [{ text: m.content }]
   }));
 
+  // 🔥 EL ARREGLO: Limpiar el inicio del historial
+  // Si el primer mensaje es de la IA ("model"), lo quitamos del array
+  // porque Gemini exige que el historial empiece siempre por "user".
+  while (geminiHistory.length > 0 && geminiHistory[0].role === "model") {
+    geminiHistory.shift(); 
+  }
+
   const chat = model.startChat({ history: geminiHistory });
   const lastMessage = chatHistory[chatHistory.length - 1].content;
   const result = await chat.sendMessage(lastMessage);
+  
   return result.response.text();
 }
 
