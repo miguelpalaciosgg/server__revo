@@ -54,9 +54,7 @@ async function aiReply(chatHistory) {
     parts: [{ text: m.content }]
   }));
 
-  // 🔥 EL ARREGLO: Limpiar el inicio del historial
-  // Si el primer mensaje es de la IA ("model"), lo quitamos del array
-  // porque Gemini exige que el historial empiece siempre por "user".
+  // Limpiar el inicio del historial
   while (geminiHistory.length > 0 && geminiHistory[0].role === "model") {
     geminiHistory.shift(); 
   }
